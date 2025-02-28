@@ -5,7 +5,6 @@
 *.jpg
 *.pyc
 events.*
-*.txt
 *.tif
 *.sh.*
 *.sh
