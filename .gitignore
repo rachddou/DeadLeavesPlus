@@ -1,6 +1,5 @@
 *.pth
 *.npy
-*.png
 *.mat
 *.bmp
 *.jpg
