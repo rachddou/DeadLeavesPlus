@@ -9,6 +9,15 @@ import skimage.io as skio
 
 
 def rotate_CV(image, angle ):
+    """Rotate an image by a given angle using OpenCV
+
+    Args:
+        image (numpy array): input image
+        angle (float): angle of rotation in degrees
+
+    Returns:
+        numpy array: rotated image
+    """
     #in OpenCV we need to form the tranformation matrix and apply affine calculations
     #
     h,w = image.shape[:2]
@@ -20,25 +29,25 @@ def rotate_CV(image, angle ):
 
 
 def normalize(x):
-    """normalize any array between zero and one with a linear transform"""
+    """
+    function that normalizes an image between 0 and 1
+
+    Args:
+        x numpy array: input image
+    """
     x = (x-x.min())/(x.max()-x.min())
     return(x)
 
-def oriented_gradient(color,width,angle):
-    """
-    creates an oriented gradient of a specified color
-    """
-    #ad hoc ok 
-    alpha = np.random.uniform(0,0.3)
-    result = np.zeros((int(width+0.4*width),int(width+0.4*width),3))
-    color = color/255.
-    for k in range(int(width+0.4*width)):
-        result[:,k,:] = (color-alpha) + (k/width)*(2*alpha)
-    return(np.uint8(255*np.clip(rotate_CV(result,angle)[int(0.2*width):width+int(0.2*width),int(0.2*width):width+int(0.2*width)],0,1)))
 
 def theoretical_number_disks(delta,r_min,r_max,width,alpha):
-    """
-    computes the theoretical number of disks in a dead leaves image with the specific parameters
+    """function that computes the theoretical number of disks in a dead leaves image with given parameters.
+
+    Args:
+        delta (float): percentage of the image covered by the disks
+        r_min (int): minimal radius of the disks
+        r_max (int): maximal radius of the disks
+        width (int): width of the image
+        alpha (float): power law parameter 
     """
     d = 0
     e =  alpha - 1
@@ -48,7 +57,6 @@ def theoretical_number_disks(delta,r_min,r_max,width,alpha):
     return(np.log(delta)/np.log(1-d))
 
 def N_sup_r(r,width,r_min,r_max):
-
     delta = 100/(width**2)
     N = theoretical_number_disks(delta,r_min,r_max,width)
     prop = ((1/r**2) - (1/r_max**2))/(1/(r_min**2) - 1/(r_max**2))
@@ -57,6 +65,14 @@ def N_sup_r(r,width,r_min,r_max):
 
 
 def make_grid(width = 100,period = [100],thickness = 3 ,angle = 45):
+    """function that creates a grid pattern with a given orientation
+
+    Args:
+        width (int, optional): width of the final image. Defaults to 100.
+        period (list, optional): period of the grid. If len(period) is 2, then the grid is bi-directional. Defaults to [100].
+        thickness (int, optional): thickness of the grid's borders. Defaults to 3.
+        angle (int, optional): orientation of the grid. Defaults to 45.
+    """
     x = np.ones((2*width))
     for i in range(1,1+(2*width)//(period[0]+thickness)):
         x[i*(period[0]+thickness)-thickness:i*(period[0]+thickness)] = 0
@@ -69,21 +85,24 @@ def make_grid(width = 100,period = [100],thickness = 3 ,angle = 45):
         grid_y = np.tile(y,(2*width,1)).T
         grid  = grid*grid_y
     grid = normalize(grid[width//2:-width//2,width//2:-width//2])
-    # grid = normalize(rotate_CV(grid,angle)[width//2:-width//2,width//2:-width//2])
-
-
-
+    grid = rotate_CV(grid,angle)
     return(grid)
 
 @njit
 def variable_oscillations(width,T_min,T_max,n_freq):
+    """function that creates a pseudo-periodic pattern with variable frequencies in 1D.
+
+    Args:
+        width (_type_): width of the final image
+        T_min (_type_): minimal period of the pattern
+        T_max (_type_): maximal period of the pattern
+        n_freq (_type_): length of the frequency array
+    """
+    
     freq_cycles = np.floor(T_min + (T_max-T_min)*np.random.power(1/2.5, size=n_freq))
     freq_cycles_bis = np.array([int(freq_cycles[i]) for i in range(n_freq)])
-
     T_full_cycle = np.sum(freq_cycles_bis)
-
     N_cycles = width//T_full_cycle
-
     res = np.zeros(width,dtype = np.float32)
     start = 0 
     for n in range(N_cycles+1):
@@ -98,8 +117,18 @@ def variable_oscillations(width,T_min,T_max,n_freq):
     return(res)
 
 def make_sinusoid(width = 100, period = [100],angle = 45 ,angle1 = 45,angle2 = 45,variable_freq = False):
-    #modify the make sinusoid function to integrate variable patterns or not
-    t0 = time()
+    """function that create a pseudo-periodic grey-level pattern based on sinusoidal functions.
+    This patterns then serves as an interpolation map either between two colors or two texture maps.
+
+    Args:   
+        width (int, optional): width of the final image. Defaults to 100.
+        period (list, optional): . Defaults to [100].
+        angle (int, optional): angle for dimension 1. Defaults to 45.
+        angle1 (int, optional): angle for dimension 2. Defaults to 45.
+        angle2 (int, optional): rotation applied to the whole sinusoidal field. Defaults to 45.
+        variable_freq (bool, optional): Creates a sequence of single periods of random length. Defaults to False.
+    """
+
     if variable_freq:
         T_min = 5
         T_max = 50
@@ -107,9 +136,9 @@ def make_sinusoid(width = 100, period = [100],angle = 45 ,angle1 = 45,angle2 = 4
     else:
         sinusoid = np.sin(((2*np.pi)/period[0])*np.arange(0,2*width))
     
-    t1 = time()
+
     sinusoid = rotate_CV(np.tile(sinusoid,(2*width,1)),angle)
-    t2 = time()
+
     if len(period)==2:
         if variable_freq:
             T_min = 5
@@ -120,7 +149,7 @@ def make_sinusoid(width = 100, period = [100],angle = 45 ,angle1 = 45,angle2 = 4
         sinusoid_y = np.tile(sinusoid_y,(2*width,1)).T
         sinusoid_y = rotate_CV(sinusoid_y,angle1)
         sinusoid  = sinusoid*sinusoid_y
-    t3 = time()
+
 
     #ad hoc ok
     alpha = np.random.uniform(1,10)
@@ -129,23 +158,29 @@ def make_sinusoid(width = 100, period = [100],angle = 45 ,angle1 = 45,angle2 = 4
 
     sinusoid = 0.5+ 0.5*sinusoid
     sinusoid = normalize(rotate_CV(sinusoid,angle2)[width//2:-width//2,width//2:-width//2])
-    t4 = time()
-    
-    # print(t1-t0)
-    # print(t2-t1)
-    # print(t3-t2)
-    # print(t4-t3)
+
     return(sinusoid)
 
 def pattern_patch_two_colors(color_1,color_2,width=100,period=[100],thickness = 3, angle=45,warp = False,type = "sin"):
+    """function that mixes two color maps with a sinusoidal pattern.
+
+    Args:
+        color_1 (_type_): either an image or a single RGB color
+        color_2 (_type_): either an image or a single RGB color
+        width (int, optional): image width. Defaults to 100.
+        period (list, optional): period of the oscillations. Defaults to [100].
+        thickness (int, optional): thickness of the grid. Defaults to 3.
+        angle (int, optional): rotation angle. Defaults to 45.
+        warp (bool, optional): Whether or not apply athmospheric perturbation. Defaults to False.
+        type (str, optional): define the type of interpolation map. Defaults to "sin".
     """
-    functions that create a sinusoidal patch between 2 colors with a random orientation.
-    parameters:
-    colors : (int)
-    width : (int) size of the patch
-    period : (list) list of periods of the sinusoid, if len  = 2 then bi-directional sinus otherwise single direction
-    angle : (int) angle in degree
-    """
+    # functions that create a sinusoidal patch between 2 colors with a random orientation.
+    # parameters:
+    # colors : (int)
+    # width : (int) size of the patch
+    # period : (list) list of periods of the sinusoid, if len  = 2 then bi-directional sinus otherwise single direction
+    # angle : (int) angle in degree
+    
     res_image = np.zeros((width,width))
 
     color_1 = color_1/255.
@@ -154,16 +189,16 @@ def pattern_patch_two_colors(color_1,color_2,width=100,period=[100],thickness = 
     color_transform_2 = rgb2lab(color_2)
     
     pattern = np.zeros((width,width))
-    t0 = time()
+
     if type == "sin":
         pattern = make_sinusoid(width = width,period = period,angle = angle,variable_freq=(np.random.random()>0.5))
     elif type == "grid":
         pattern = make_grid(width = width,period = period,angle = angle ,thickness = thickness)
 
-    t1 = time()
+
     if warp:        
         pattern = np.clip(generate_perturbation(pattern),0,1)  
-    t2 = time()
+
 
     r = pattern*(color_transform_2[...,0]-color_transform_1[...,0])+color_transform_1[...,0]
     g = pattern*(color_transform_2[...,1]-color_transform_1[...,1])+color_transform_1[...,1]
@@ -174,11 +209,7 @@ def pattern_patch_two_colors(color_1,color_2,width=100,period=[100],thickness = 
     res_image = lab2rgb(res_image)
 
     res_image = np.uint8(res_image*255)
-    t3 = time()
-    
-    # print(t1-t0)
-    # print(t2-t1)
-    # print(t3-t2)
+
     return(res_image)
 
 def logistic(x, L=1, x_0=0, k=1):
@@ -392,17 +423,17 @@ def freq_noise(image,width,slope):
     """
     h,w = image.shape[0],image.shape[1]
     p = 50
-    t0 = time()
+
     xx,yy = np.random.randint(0,h-p),np.random.randint(0,w-p)
     image = image[xx:xx+p,yy:yy+p]
     image = image.reshape((p*p,3))
     index =np.random.choice(np.arange(0,p*p),replace= True,size = width*width)
     
-    t1 = time()
+
     image = image[index]
     image = image.reshape((width,width,3)).astype(np.float32)
     magnitude = sample_magnitude(width,slope)
-    t2 = time()
+
     for c in range(3):
         x = image[...,c]
 
@@ -419,10 +450,6 @@ def freq_noise(image,width,slope):
         y = y / np.std(y) * s + m
 
         image[...,c] = y
-    t3 = time()
-    # print(t1-t0)
-    # print(t2-t1)
-    # print(t3-t2)
     image = np.uint8(np.clip(image,0,255))
     return(image)
 

@@ -14,7 +14,12 @@ from dead_leaves_generation.dead_leaves_class import Textures, Deadleaves
 
 
 def image_gen(object,config):
-    
+    """a function that generates either a dead leaves or a texture image, and saves it in a directory, based on the configuration file
+
+    Args:
+        object (_type_): instance of the class that generates the image
+        config (_type_): config file that contains the parameters of the image generation
+    """
     if config.image_type  == "dead_leaves":
         if config.shape.multiple_shapes:
             shapes = ["poly","mix"]
@@ -45,6 +50,13 @@ def image_gen(object,config):
 
 @hydra.main(version_base=None, config_path="./config", config_name="default")
 def main(config):
+    """
+    Main function that generates the images based on the configuration file
+    This function creates a directory, generates the images, and saves them in the directory
+    It can be passed as an argument to the hydra.main function, which will use the configuration file to generate the images
+    Args:
+        config (_type_): configuration file that contains the parameters of the image generation
+    """
     # directory creation
     direct = config.io.path
     if not os.path.exists(os.path.join(config.io.path_origin,direct)):
