@@ -213,16 +213,36 @@ def pattern_patch_two_colors(color_1,color_2,width=100,period=[100],thickness = 
     return(res_image)
 
 def logistic(x, L=1, x_0=0, k=1):
+    """
+    logistic function
+
+    Args:
+        x (_type_): input
+        L (int, optional): _description_. Defaults to 1.
+        x_0 (int, optional): _description_. Defaults to 0.
+        k (int, optional): _description_. Defaults to 1.
+
+    Returns:
+        _type_: y = L / (1 + exp(-k * (x - x_0)))
+    """
     return L / (1 + np.exp(-k * (x - x_0)))
 
 def normalized_logistic(x,k):
+    """
+    function that normalizes a logistic function between 0 and 1
+    """
     y = (logistic(12.1*x-6,k=k)-logistic(-6,k=k))/(logistic(6.1,k=k)-logistic(-6,k=k))
     return(y)
 
 def linear_color_gradient(color_1,color_2,width,angle, k = 0.5,color_space = "lab"):
-    """
-    function that creates a color gradient image between two colors in different color space.
-    This is done to study the impact of the color space to the aspect of the gradient.
+    """function that creates a color gradient between two colors in different color space.
+    Args:
+        color_1 (_type_): first color in RGB
+        color_2 (_type_): second color in RGB
+        width (_type_): width of the gradient
+        angle (_type_): angle of the gradient
+        k (float, optional): smoothness factor of the gradient. Defaults to 0.5.
+        color_space (str, optional): _description_. Defaults to "lab".
     """
     lin_gradient =np.tile(np.linspace(0,1,2*width),(2*width,1))
     rotated_grad = normalize(rotate_CV(lin_gradient,angle)[width//2:-width//2,width//2:-width//2])
@@ -373,8 +393,10 @@ def generate_perturbation(x):
     return(res)
 
 def random_phase_im(image):
-    """
-    applies a random shift to the phase of an image
+    """apply a random phase to the image in the frequency domain
+
+    Args:
+        image (_type_): input RGB image
     """
     image = image /255
     fft_3 = [np.fft.fft2(image[...,i]) for i in range(3)]
@@ -389,28 +411,32 @@ def random_phase_im(image):
         final_c =np.fft.ifft2(final_fft_c)
         final_c = np.abs(final_c)
         final_im[...,i] = final_c
-    # final_im = (final_im-final_im.min())/(1e-5+final_im.max()-final_im.min())
+        
     final_im = np.clip(final_im,0,1)
     final_im = np.uint8(255*final_im)
     return(final_im)
 
 def sample_magnitude(resolution,slope):
-    """
-    function that creates the profile of the power spectrum of a noise
-    so that it has a slope chosen by the user 
-    """
-    slope_0, slope_1 = 0.5,3.5
-    d = np.random.normal() * np.abs(slope_1 - slope_0) / 15 / 4
+    """function that creates a magnitude map for the frequency domain in 1/f^slope
 
-    slope_x = slope + d
-    slope_y = slope - d
+    Args:
+        resolution (int): size of the texture image
+        slope (float): slope of the magnitude map in the log domain
+    """
+    # slope_0, slope_1 = 0.5,3.5
+    # d = np.random.normal() * np.abs(slope_1 - slope_0) / 15 / 4
+
+    # slope_x = slope + d
+    # slope_y = slope - d
 
     fx, fy = np.meshgrid(range(resolution), range(resolution))
 
     fx = fx - resolution / 2
     fy = fy - resolution / 2
 
-    fr = 1e-16 + np.abs(fx / resolution) ** slope_x + + np.abs(fy / resolution) ** slope_y
+    # fr = 1e-16 + np.abs(fx / resolution) ** slope_x + + np.abs(fy / resolution) ** slope_y
+    
+    fr = 1e-16 + np.abs(fx / resolution) ** slope +  np.abs(fy / resolution) ** slope
 
     magnitude = 1 / np.fft.fftshift(fr)
     magnitude[0,0] = 0
@@ -418,8 +444,12 @@ def sample_magnitude(resolution,slope):
     return(magnitude)
 
 def freq_noise(image,width,slope):
-    """
-    creates a frequential noise whoes spectrum is limitted by the magnitude of chosen slope 
+    """function that creates colored noise with a given slope in the frequency domain from the color histogram of an existing image
+
+    Args:
+        image (_type_): source image for color histogram
+        width (_type_): size of the texture image
+        slope (_type_): slope of the magnitude map in the log domain 
     """
     h,w = image.shape[0],image.shape[1]
     p = 50
@@ -480,14 +510,22 @@ def shadow_gradient(texture,angle, k = 0.5,low =0.2):
 
 
 def mixing_materials_v2(tmp1 = np.random.randint(0,255,(100,100,3)),tmp2 = np.random.randint(0,255,(100,100,3)),single_color1 = True,single_color2 = True,mixing_types = ["sin"],width = 1000,thresh_val = 10,warp = True):
-    """
-    function that mixes different textures using a noise model / grid model / sin model or any combination of those
+    """function that mixes two color/texture maps with either a sinusoidal pattern, a grid pattern or a noise pattern.
+
+    Args:
+        tmp1 (_type_, optional): source color image 1. Defaults to np.random.randint(0,255,(100,100,3)).
+        tmp2 (_type_, optional): source color image 2. Defaults to np.random.randint(0,255,(100,100,3)).
+        single_color1 (bool, optional): whether texture 1 is a single color or a colored noise map. Defaults to True.
+        single_color2 (bool, optional): whether texture 2 is a single color or a colored noise map. Defaults to True.
+        mixing_types (list, optional): interpolation methods between two textures. Defaults to ["sin"].
+        width (int, optional): size of the final texture image. Defaults to 1000.
+        thresh_val (int, optional): specific to noise mixing, the thresholding parameter for binary masking. Defaults to 10.
+        warp (bool, optional): whether or not to apply warping for the sinusoidal interpolation maps. Defaults to True.
     """
     if single_color1:
         color1 = tmp1[np.random.randint(0,tmp1.shape[0],1),np.random.randint(0,tmp1.shape[1],1),:].reshape((1,1,3))
 
     else:
-        #ad hoc ok
         slope1 = np.random.uniform(0.5,2.)
         color1 = freq_noise(tmp1,width,slope1)
     if single_color2:
@@ -563,6 +601,15 @@ def mixing_materials_v2(tmp1 = np.random.randint(0,255,(100,100,3)),tmp2 = np.ra
 
 
 def find_coeffs(pa, pb):
+    """function that finds the coefficients for the perspective function.
+
+    Args:
+        pa (_type_): _description_
+        pb (_type_): _description_
+
+    Returns:
+        _type_: coefficients for the perspective function
+    """
     matrix = []
     for p1, p2 in zip(pa, pb):
         matrix.append([p1[0], p1[1], 1, 0, 0, 0, -p2[0]*p1[0], -p2[0]*p1[1]])
@@ -576,6 +623,11 @@ def find_coeffs(pa, pb):
 
 
 def perspective_shift(image):
+    """function that applies a perspective shift to an image
+
+    Args:
+        image (_type_): input image
+    """
 
     size = image.shape[0]
     img = Image.fromarray(image)
@@ -591,9 +643,6 @@ def perspective_shift(image):
             Image.BICUBIC)
 
     img = np.array(img)
-    # print(img.shape)
-    # print(size//alpha - (size - 2*beta))
-    # yo = size//alpha - (size - 2*beta)
     yo = 0
     result = img[beta:size-beta,    yo :size//alpha]
     if mode == 0 :
