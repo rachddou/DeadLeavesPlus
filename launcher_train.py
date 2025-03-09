@@ -1,5 +1,5 @@
-from train_test.train import train
-from train_test.train_drunet import train_drunet
+from train_test.train import train_ffdnet,train_drunet
+
 import argparse
 
 if __name__ == "__main__":
@@ -18,10 +18,8 @@ if __name__ == "__main__":
     parser.add_argument("--no_orthog"           , action='store_true',help="Don't perform orthogonalization as regularization")
     parser.add_argument("--resume_training"     , action='store_true',help="Don't perform orthogonalization as regularization")
     parser.add_argument("--grad_clip"           , action='store_true',help="perform gradient clipping")
-    parser.add_argument("--natural_only"        , action='store_true',help="activates natural training only")
     parser.add_argument("--blur"                , action='store_true',help="activates blur augmentation")
     parser.add_argument("--residual"            , action='store_true',help="activates residual learning")
-    parser.add_argument("--contrast_reduction"  , action='store_true',help="activates contrast reduction")
     parser.add_argument("--blind"               , action='store_true',help="activates blind denoising")
 
     parser.add_argument("--model"               , type=str  ,               default='FFDNet'                        , help="Name of the model to train on")
@@ -48,6 +46,6 @@ if __name__ == "__main__":
     if argspar.model == "DRUNet":
         train_drunet(argspar)
     elif argspar.model == "FFDNet":
-        train(argspar)
+        train_ffdnet(argspar)
     else:
         print("Not implemented")
