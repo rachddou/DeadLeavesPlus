@@ -25,54 +25,7 @@ def rgb_2_grey_tensor(tensor, train):
     grey_scale[:,0,:,:] = 0.2126*tensor[:,0,...]+0.7152*tensor[:,1,...]+0.0722*tensor[:,2,...]
     return(grey_scale)
 
-def var_map(input, w_size):
-    """
-    function that generates the local variance map of the input image
-    w_size has to be odd
-    """
-    N, _, H, W = input.size()
-    r = w_size//2
-    input = torch.mean(input,dim=1).view(N,1,H,W)
-    padded_img = nn.functional.pad(input,(r,r,r,r),mode = "replicate")
-    unfold = torch.nn.Unfold(kernel_size=(w_size,w_size))
-    output = unfold(padded_img)
-    output = 2*torch.std(output,dim = 1).view((N,1,H,W))
-    return(output)
 
-def dct_map(img, normalisation_mode = "none"):
-    """
-    input : color image
-    output : single map of dct criterion
-    """
-    N, _, H, W = img.size()
-    img = torch.mean(img,dim=1).reshape(N,1,H,W)
-    img = nn.functional.pad(img,(3,4,3,4),mode = "replicate")
-    unfold = torch.nn.Unfold(kernel_size=(8,8))
-    img = unfold(img)
-    img = img.transpose(2,1)
-    #mean_1 = img.mean(dim = -1,keepdim=True).expand(-1,-1,64)
-    #img-= mean_1
-    
-    F = dct(np.eye(8), type=2, norm='ortho')
-    FF = torch.Tensor(np.kron(F,F)).cuda()
-    img = torch.abs(torch.matmul(img,FF))
-
-    if normalisation_mode == "first exclusion":
-        img = img[:,:,1:]
-        norm = img.sum(-1, keepdim=True)
-        img = img/(norm+1e-5)
-    elif normalisation_mode == "classic":
-        norm = img.sum(-1, keepdim=True)
-        img = img/(norm+1e-5)
-    elif normalisation_mode == "first = 1":
-        norm = img[:,:,0].view(1,H*W,1).repeat(1,1,64)
-        img = img/(norm+1e-5)
-    img = torch.sort(img,dim = -1).values
-    img = img[:,:,:32].sum(dim = -1).view((N,1,H,W))
-    if normalisation_mode not in ["first exclusion","classic"]:
-        pass
-    img = (img -img.min())/(img.max()-img.min())
-    return(img)
 
 def compute_noise_map(input, nsigma, sca = 2,mode = "constant"):
     N, C, H, W = input.size()
@@ -85,40 +38,6 @@ def compute_noise_map(input, nsigma, sca = 2,mode = "constant"):
     elif mode == "single":
         noise_map = nsigma.view(N, 1, 1, 1).repeat(1, 1, Hout, Wout)
         return(noise_map)
-    elif mode == "texture":
-        nmin,nmax = 0.85*nsigma, 1.0*nsigma
-        v_map = var_map(input,5)
-        dct_img = dct_map(input, normalisation_mode = "classic")
-        noise_map = dct_img*(1-v_map)
-
-        #applying median filtering
-        filtering = True
-        if filtering :
-            _, _, H, W = noise_map.size()
-            noise_map = nn.functional.pad(noise_map,(2,2,2,2),mode = "replicate")
-            unfolded = torch.nn.Unfold(kernel_size=(5,5))(noise_map)
-            unfolded = unfolded.transpose(2,1)
-            noise_map = torch.median(unfolded,dim = -1,keepdim=True)[0].view((1,1,H,W))
-
-        omin, omax = noise_map.min(),noise_map.max()
-        noise_map = nmin+ (nmax-nmin)*(1-(noise_map-omin)/(omax-omin))
-        #noise_map = (1+ (noise_map-noise_map.mean())/(22*noise_map.std()))*nsigma
-        noise_map = noise_map[:,:,0::2,0::2]
-        noise_map = noise_map.repeat(1,C,1,1)
-        if test:
-            cpu_dct = dct_img.cpu().detach().numpy()[0,0]
-            cpu_vmap = v_map.cpu().detach().numpy()[0,0]
-            imsave("dct_map.png",cpu_dct)
-            imsave("var_map.png",1-cpu_vmap)
-        return(noise_map)
-
-
-
-
-
-
-
-
 		
 
 def weights_init_kaiming(lyr):
