@@ -5,10 +5,9 @@ import glob
 import numpy as np
 import cv2
 import h5py
-from skimage.filters import gaussian
 import torch
 import torch.utils.data as udata
-from utils.utils import data_augmentation, normalize, contrast_reduction_
+from utils.utils import data_augmentation, normalize
 from pathlib import Path
 
 def img_to_patches(img, win, stride=1):
@@ -128,8 +127,7 @@ def prepare_data(data_paths, \
         max_num_patches=None, \
         filenames = ['train/','val/'], \
         aug_times=1, \
-        gray_mode=False, \
-        mask = 0):
+        gray_mode=False):
     r"""Builds the training and validations datasets by scanning the
     corresponding directories for images and extracting	patches from them.
 
@@ -257,42 +255,6 @@ def prepare_data(data_paths, \
     print('\ttraining set, # samples %d' % train_num2)
     print('\tvalidation set, # samples %d\n' % val_num)
 
-class Dataset(udata.Dataset):
-    r"""Implements torch.utils.data.Dataset
-    """
-    def __init__(self, train=True, gray_mode=False, shuffle=False,filenames = ['train_gray.h5','val_gray.h5','train_mix_color.h5','val_color.h5']):
-        super(Dataset, self).__init__()
-        self.train = train
-        self.gray_mode = gray_mode
-        if not self.gray_mode:
-            self.traindbf = 'datasets/h5files/'+filenames[2]
-            self.valdbf = 'datasets/h5files/'+filenames[3]
-        else:
-            self.traindbf = 'datasets/h5files/'+filenames[0]
-            self.valdbf = 'datasets/h5files/'+filenames[1]
-
-        if self.train:
-            h5f = h5py.File(self.traindbf, 'r')
-        else:
-            h5f = h5py.File(self.valdbf, 'r')
-        self.keys = list(h5f.keys())
-        if shuffle:
-            random.shuffle(self.keys)
-        h5f.close()
-
-    def __len__(self):
-        return len(self.keys)
-
-    def __getitem__(self, index):
-        if self.train:
-            h5f = h5py.File(self.traindbf, 'r')
-        else:
-            h5f = h5py.File(self.valdbf, 'r')
-
-        key = self.keys[index]
-        data = np.array(h5f[key])
-        h5f.close()
-        return torch.Tensor(data)
 
 class HDF5Dataset(udata.Dataset):
     """Represents an abstract HDF5 dataset.
@@ -306,14 +268,11 @@ class HDF5Dataset(udata.Dataset):
         data_cache_size: Number of HDF5 files that can be cached in the cache (default=3).
         transform: PyTorch transform to apply to every data instance (default=None).
     """
-    def __init__(self, file_path, recursive, load_data,mask = 0,contrast_reduction = False, data_cache_size=3, add_blur=None):
+    def __init__(self, file_path, recursive, load_data, data_cache_size=3):
         super().__init__()
         self.data_info = []
         self.data_cache = {}
         self.data_cache_size = data_cache_size
-        self.add_blur = add_blur
-        self.mask = mask
-        self.contrast_reduction = contrast_reduction
 
         # Search for all h5 files
         p = Path(file_path)
@@ -329,42 +288,21 @@ class HDF5Dataset(udata.Dataset):
             self._add_data_infos(str(h5dataset_fp.resolve()), load_data)
 
     def __getitem__(self, index):
-        # get data
         x = self.get_data(index)
         if x.dtype is np.dtype('uint8'):
             x = np.float32(self.get_data(index)/255.)
-        if self.add_blur:
-            blur = np.random.random()
-            if blur>0.9:
-                blur_value = np.random.uniform(1,3)
-                x = gaussian(x, blur_value,channel_axis = 0)
-        
-        if self.contrast_reduction:
-            tmp = np.random.random()
-            if tmp>0.66:
-                interval = np.random.uniform(0.1,0.3)
-                contrast_reduction_(x,interval)
-
         x = torch.from_numpy(x)
-        return ((self.mask,x))
+        return (x)
 
     def __len__(self):
         return len(self.data_info)
     def _add_data_infos(self, file_path, load_data):
         with h5py.File(file_path) as h5_file:
-            # Walk through all the data values, extracting datasets
             c = 0
             for dname, ds in h5_file.items():
-                # c+=1
-                # if c == 1000:
-                #     break
-                # if data is not loaded its cache index is -1
                 idx = -1
                 if load_data:
-                    # add data to the data cache
                     idx = self._add_to_cache(ds[()], file_path)
-
-                # we also store the shape of the data in case we need it
                 self.data_info.append({'file_path': file_path, 'shape': ds[()].shape, 'cache_idx': idx})
 
     def _load_data(self, file_path):
@@ -375,26 +313,14 @@ class HDF5Dataset(udata.Dataset):
         with h5py.File(file_path) as h5_file:
             c = 0
             for dname, ds in h5_file.items():
-                # add data to the data cache and retrieve
-                # the cache index
-                # c+=1
-                # if c == 1000:
-                #     break
                 idx = self._add_to_cache(ds[()], file_path)
-
-                # find the beginning index of the hdf5 file we are looking for
                 file_idx = next(i for i,v in enumerate(self.data_info) if v['file_path'] == file_path)
-
-                # the data info should have the same index since we loaded it in the same way
                 self.data_info[file_idx + idx]['cache_idx'] = idx
 
-        # remove an element from data cache if size was exceeded
         if len(self.data_cache) > self.data_cache_size:
-            # remove one item from the cache at random
             removal_keys = list(self.data_cache)
             removal_keys.remove(file_path)
             self.data_cache.pop(removal_keys[0])
-            # remove invalid cache_idx
             self.data_info = [{'file_path': di['file_path'], 'shape': di['shape'], 'cache_idx': -1} if di['file_path'] == removal_keys[0] else di for di in self.data_info]
 
     def _add_to_cache(self, data, file_path):
@@ -422,85 +348,4 @@ class HDF5Dataset(udata.Dataset):
     def get_info(self,i):
         fp = self.data_info[i]['file_path']
         return(fp)
-
-class SubsetSequentialSampler(udata.Sampler):
-    r""" Sample that samples from two datasets to form a batch
-
-    """
-    def __init__(self,indices,desc_order):
-        self.indices = indices
-        self.desc_order = desc_order
-    def __iter__(self):
-        if self.desc_order :
-            return(self.indices[-i-1] for i in range(len(self.indices)))
-        else :
-            return(self.indices[i] for i in range(len(self.indices)))
-    def __len__(self):
-        return(len(self.indices))
-
-class BatchComposer(udata.Sampler):
-    r"""
-    compose two batch samplers that sample patches independantly
-    """
-    def __init__(self, sampler1, sampler2):
-        self.sampler1 = sampler1
-        self.sampler2 = sampler2
-        self.composedbatch = zip(self.sampler1,self.sampler2)
-    def __iter__(self):
-        for indices in self.composedbatch :
-            idx = indices[0] + indices[1]
-            yield (idx)
-    def __len__(self):
-        return(sum([1 for _ in self.composedbatch]))
-
-class BatchSchedulerSampler(udata.Sampler):
-    """
-    iterate over tasks and provide a random batch per task in each mini-batch
-    """
-    def __init__(self, dataset, batch_size):
-        self.dataset = dataset
-        self.batch_size = batch_size
-        self.number_of_datasets = len(dataset.datasets)
-        self.size = sum([len(cur_dataset) for cur_dataset in dataset.datasets])
-
-    def __len__(self):
-        return self.size
-
-    def __iter__(self):
-        samplers_list = []
-        sampler_iterators = []
-        for dataset_idx in range(self.number_of_datasets):
-            cur_dataset = self.dataset.datasets[dataset_idx]
-            sampler = udata.RandomSampler(cur_dataset)
-            samplers_list.append(sampler)
-            cur_sampler_iterator = sampler.__iter__()
-            sampler_iterators.append(cur_sampler_iterator)
-
-        push_index_val = [0] + self.dataset.cumulative_sizes[:-1]
-        step = self.batch_size * (self.number_of_datasets+1)
-        samples_to_grab = self.batch_size
-        # for this case we want to get all samples in dataset, this force us to resample from the smaller datasets
-        epoch_samples = self.size
-
-        final_samples_list = []  # this is a list of indexes from the combined dataset
-        for _ in range(0, epoch_samples, step):
-            for i in range(self.number_of_datasets+1):
-                cur_batch_sampler = sampler_iterators[i//2]
-                cur_samples = []
-                for _ in range(samples_to_grab):
-                    try:
-                        cur_sample_org = cur_batch_sampler.__next__()
-                        cur_sample = cur_sample_org + push_index_val[i//2]
-                        cur_samples.append(cur_sample)
-                    except StopIteration: 
-                        # got to the end of iterator - restart the iterator and continue to get samples
-                        # until reaching "epoch_samples"
-                        sampler_iterators[i//2] = samplers_list[i//2].__iter__()
-                        cur_batch_sampler = sampler_iterators[i//2]
-                        cur_sample_org = cur_batch_sampler.__next__()
-                        cur_sample = cur_sample_org + push_index_val[i//2]
-                        cur_samples.append(cur_sample)
-                final_samples_list.extend(cur_samples)
-
-        return iter(final_samples_list)
 
