@@ -30,8 +30,7 @@ from utils.utils import batch_ssim, normalize, init_logger_ipol, \
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-from utils.PerceptualImageError.utils.image_utils import *
-from utils.PerceptualImageError.model.PieAPPv0pt1_PT import PieAPP
+
 import skimage.io as skio
 
 
@@ -183,8 +182,6 @@ def test_ffdnet_dataset(**args):
         start_t = time()
 
         # Estimate noise and subtract it to the input image
-        # noise_map = compute_noise_map(imnoisy, nsigma,sca, mode = args["noise_map"])
-            #noise_map = compute_noise_map(imnoisy, nsigma, mode = args['noise_map'])
         if not(args["blind"]):
             noise_map = compute_noise_map(imnoisy, nsigma,sca, mode = args["noise_map"])
             
@@ -206,12 +203,10 @@ def test_ffdnet_dataset(**args):
         if expanded_h:
             imorig = imorig[:, :, :-1, :]
             outim = outim[:, :, :-1, :]
-            #imnoisy = imnoisy[:, :, :-1, :]
 
         if expanded_w:
             imorig = imorig[:, :, :, :-1]
             outim = outim[:, :, :, :-1]
-            #imnoisy = imnoisy[:, :, :, :-1]
         
         fname = filename.split("/")
         fname = fname[-1].split(".")[0]
@@ -226,12 +221,7 @@ def test_ffdnet_dataset(**args):
         if args['contrast_reduction']:
             outimg = outim[0,...].detach().cpu().numpy().transpose(1,2,0)
             for i in range(3):
-                print(ratios[i])
-                # outimg[...,i] = outimg[...,i]-0.5+means[i]
-                print(outimg.min())
-                print(outimg.max())
                 outimg[...,i] = (1./f)*(outimg[...,i]-outimg[...,i].min())
-
             outimg = np.clip(255*outimg,0,255).astype(np.uint8)
         img_orig = variable_to_cv2_image(imorig)
         residual = (img_orig - outimg)
@@ -252,11 +242,11 @@ def test_ffdnet_dataset(**args):
         if args['save']:
             if not(os.path.isdir(os.path.join("tests",args["save_dir"]))):
                 os.makedirs(os.path.join("tests",args["save_dir"]))
-            #skio.imsave("tests/"+args["save_dir"]+fname+"_ffdnet.png", outimg)
+
             cv2.imwrite("tests/"+args["save_dir"]+fname+"_ffdnet.png", outimg)
             if args['save_res']:
                 cv2.imwrite("tests/"+args["save_dir"]+fname+"_residual.png", residual)
-            #cv2.imwrite("tests/"+args["save_dir"]+fname+"_noisy.png", noiseimg)
+
         # Compute PSNR and log it
         if rgb_den:
             logger.info("### RGB denoising ###")
@@ -267,102 +257,14 @@ def test_ffdnet_dataset(**args):
             # psnr_test_set+=psnr
             ssim_val = batch_ssim(outim,imorig)
             ssim_test_set+=ssim_val
-            if args['pieapp']:
-                ######## variables
-                patch_size = 64
-                batch_size = 1
-                stride_val = 6
-                num_patches_per_dim = 10
-
-                _,ch,rows,cols = imorig.size()
-                #print(imorig.shape)
-                #print(cols)
-                y_loc = np.concatenate((np.arange(0, rows - patch_size, stride_val),np.array([rows - patch_size])), axis=0)
-                num_y = len(y_loc)
-                x_loc = np.concatenate((np.arange(0, cols - patch_size, stride_val),np.array([cols - patch_size])), axis=0)
-                num_x = len(x_loc)
-
-                ######## initialize the model
-                PieAPP_net = PieAPP(int(batch_size),int(num_patches_per_dim))
-                state_dict = torch.load('PerceptualImageError/weights/PieAPPv0.1.pth', map_location='cpu')
-                state_dict['ref_score_subtract.weight'] = state_dict['ref_score_subtract.weight'].view((1,1))
-                PieAPP_net.load_state_dict(state_dict)
-                PieAPP_net.cuda()
-
-                score_accum = 0.0
-                weight_accum = 0.0
-                score_accum_2 = 0.0
-                weight_accum_2 = 0.0
-                #iterate through smaller size sub-images (to prevent memory overload)
-                for x_iter in range(0, -(-num_x//num_patches_per_dim)):
-                    for y_iter in range(0, -(-num_y//num_patches_per_dim)):
-                        # compute the size of the subimage
-                        if (num_patches_per_dim*(x_iter + 1) >= num_x):
-                            size_slice_cols = cols - x_loc[num_patches_per_dim*x_iter]
-                        else:
-                            size_slice_cols = x_loc[num_patches_per_dim*(x_iter + 1)] - x_loc[num_patches_per_dim*x_iter] + patch_size-stride_val
-                        if (num_patches_per_dim*(y_iter + 1) >= num_y):
-                            size_slice_rows = rows - y_loc[num_patches_per_dim*y_iter]
-                        else:
-                            size_slice_rows = y_loc[num_patches_per_dim*(y_iter + 1)] - y_loc[num_patches_per_dim*y_iter] + patch_size - stride_val
-                        # obtain the subimage and samples patches
-                        A_sub_im = outim[:,:, y_loc[num_patches_per_dim*y_iter]:y_loc[num_patches_per_dim*y_iter]+size_slice_rows, x_loc[num_patches_per_dim*x_iter]:x_loc[num_patches_per_dim*x_iter]+size_slice_cols]
-                        B_sub_im = imnoisy[:,:, y_loc[num_patches_per_dim*y_iter]:y_loc[num_patches_per_dim*y_iter]+size_slice_rows, x_loc[num_patches_per_dim*x_iter]:x_loc[num_patches_per_dim*x_iter]+size_slice_cols]
-                        ref_sub_im = imorig[:,:, y_loc[num_patches_per_dim*y_iter]:y_loc[num_patches_per_dim*y_iter]+size_slice_rows, x_loc[num_patches_per_dim*x_iter]:x_loc[num_patches_per_dim*x_iter]+size_slice_cols]
-
-
-                        A_tensor = A_sub_im.unfold(2,64,stride_val).unfold(3,64,stride_val)
-                        A_tensor = A_tensor.contiguous().view( 3,-1,64,64).permute((1,0,2,3))
-                        B_tensor = B_sub_im.unfold(2,64,stride_val).unfold(3,64,stride_val)
-                        B_tensor = B_tensor.contiguous().view( 3,-1,64,64).permute((1,0,2,3))
-                        ref_tensor = ref_sub_im.unfold(2,64,stride_val).unfold(3,64,stride_val)
-                        ref_tensor = ref_tensor.contiguous().view(3,-1,64,64).permute((1,0,2,3)) 
-
-                        # A_tensor = torch.nn.Unfold(kernel_size=(64,64), stride = stride_val)(A_sub_im)
-                        # ref_tensor = torch.nn.Unfold(kernel_size=(64,64), stride = stride_val)(ref_sub_im)
-                        N_patches = A_tensor.size()[0]
-                        A_patches_var = 255.*A_tensor
-                        B_patches_var = 255.*B_tensor
-                        ref_patches_var = 255.*ref_tensor
-                        A_patches_var = torch.round(A_patches_var)
-                        B_patches_var = torch.round(B_patches_var)
-                        ref_patches_var = torch.round(ref_patches_var)
-                        A_patches_var = A_patches_var.cuda()
-                        B_patches_var = B_patches_var.cuda()
-                        ref_patches_var = ref_patches_var.cuda()
-                        num_patches_curr = int(N_patches/batch_size)
-                        PieAPP_net.num_patches = num_patches_curr
-                        # forward pass 
-                        score_1, PieAPP_patchwise_errors, PieAPP_patchwise_weights = PieAPP_net.compute_score(A_patches_var.float(), ref_patches_var.float())
-                        curr_err = PieAPP_patchwise_errors.cpu().data.numpy()
-                        curr_weights = 	PieAPP_patchwise_weights.cpu().data.numpy()
-                        score = np.multiply(curr_err,curr_weights)
-                        score_accum += np.sum(score)
-                        weight_accum += np.sum(curr_weights)
-                        if noise_test :
-                            score_1, PieAPP_patchwise_errors, PieAPP_patchwise_weights = PieAPP_net.compute_score(B_patches_var.float(), ref_patches_var.float())
-                            curr_err = PieAPP_patchwise_errors.cpu().data.numpy()
-                            curr_weights = 	PieAPP_patchwise_weights.cpu().data.numpy()
-                            score = np.multiply(curr_err,curr_weights)
-                            score_accum_2 += np.sum(score)
-                            weight_accum_2 += np.sum(curr_weights)
-
-                PieAPP_val = score_accum/weight_accum
-                PieAPP_test_set+=PieAPP_val
 
         else:
             logger.info("\tNo noise was added, cannot compute PSNR")
         logger.info("\tRuntime {0:0.4f}s".format(stop_t-start_t))
     psnr_test_set*= (1./len(im_files))
     ssim_test_set*= (1./len(im_files))
-    if args['pieapp']:
-        PieAPP_test_set*= (1./len(im_files))
     print("SSIM : {}".format(ssim_test_set))
     print("PSNR : {}".format(psnr_test_set))
-    if args['pieapp']:
-        print("PieAPP : {}".format(PieAPP_test_set))
-        if noise_test:
-            PieAPP_test_set_n*= (1./len(im_files))
-            print("PieAPP noisy : {}".format(PieAPP_test_set_n))
+
 
 
