@@ -1,4 +1,4 @@
-# Dead Leaves++ : Bridging the gap between synthetic and natural images for deep image restoration
+# **VibrantLeaves : A principled parametric image generator for training deep restoration models**
 
 |                                          ![teaser](readme_images/teaser.png)                                          |
 | :------------------------------------------------------------------------------------------------------------------: |
@@ -14,7 +14,7 @@ Even though Deep Neural Networks (NN) are extremely powerful for image restorati
 
 | ![dl++](readme_images/im_first_page_2.png)  ![dl++](readme_images/im_first_page.png) | ![dl](readme_images/im_69809436.png)  ![dl](readme_images/im_69810650.png) |
 | :------------------------------------------------------------------------------: | :--------------------------------------------------------------------: |
-|                         **Dead Leaves++ examples**                         |                          Dead Leaves examples                          |
+|                        **Vibrant Leaves examples**                        |                          Dead Leaves examples                          |
 
 ## Usage of this repository
 
@@ -33,7 +33,7 @@ In order to generate the final Dead Leaves++, run the following command:
 python image_generation.py
 ```
 
-This function will generate and store images in the `dataset/dead_leaves_++` folder. In order to change the parameters of generation feel free to modify the `config/default.yaml` file.
+This function will generate and store images in the `dataset/vibrantLeaves/` folder. In order to change the parameters of generation feel free to modify the `config/default.yaml` file.
 
 This file is organized as follows:
 
@@ -66,7 +66,7 @@ color: ## color parameters
 
 io: ## saving parameters
   path_origin: "datasets/"
-  path: "dead_leaves_++/"
+  path: "vibrantLeaves/"
 
 post_process: ## depth-of-field and other postprocessing functions
   downscaling: True
