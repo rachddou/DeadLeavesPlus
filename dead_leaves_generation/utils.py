@@ -303,8 +303,6 @@ def generate_vector_field(shape):
     function that generates the direction maps for the distortion parameter
     input :
     - shape : is the side length of the square
-    - s : is the smoothness parameter
-    - t : is the intensity parameter
 
     output :
     - u the direction map wrt x
@@ -526,23 +524,23 @@ def mixing_materials_v2(tmp1 = np.random.randint(0,255,(100,100,3)),tmp2 = np.ra
         color1 = tmp1[np.random.randint(0,tmp1.shape[0],1),np.random.randint(0,tmp1.shape[1],1),:].reshape((1,1,3))
 
     else:
-        slope1 = np.random.uniform(0.5,2.)
+        slope1 = np.random.uniform(0.5,2.5)
         color1 = freq_noise(tmp1,width,slope1)
     if single_color2:
         color2 = tmp2[np.random.randint(0,tmp2.shape[0],1),np.random.randint(0,tmp2.shape[1],1),:].reshape((1,1,3))
 
     else:
         #ad hoc ok
-        slope2 = np.random.uniform(1.,2.5)
+        slope2 = np.random.uniform(0.5,2.5)
         color2 =freq_noise(tmp2,width,slope2)
 
     if "sin" in mixing_types:
-        #ad hoc not justified
-
         angle = np.random.uniform(-45,45)
         angle1 = angle+np.random.choice([-1,1])*np.random.uniform(15,45)
-        angle2 = np.random.uniform(-25,25)
+        angle2 = np.random.uniform(-22.5,22.5)
         #ad hoc proportion
+        
+        ## CHANGE THAT BECAUSE IT IS NOT JUSTIFIED!!
         two_dim = np.random.random()>0.1
         if two_dim:
             period_sin = [np.random.randint(4,15),np.random.randint(4,15)]

@@ -52,7 +52,7 @@ class Textures:
 
 
         if  self.texture_type == "freq_noise":
-            slope = np.random.uniform(0.5,3.5)
+            slope = np.random.uniform(0.5,2.5)
             #color_component = freq_noise(self.img_source,width=self.width,slope = slope)
             color_component = freq_noise(self.random_patch_selection(),width=width,slope = slope)
             

@@ -4,13 +4,13 @@
 | :------------------------------------------------------------------------------------------------------------------: |
 | Image denoising comparison of different versions of DRUNet trained on synthetic images vs real-world natural images. |
 
-**Dead Leaves++ : Bridging the gap between synthetic and natural images for deep image restoration**
+**VibrantLeaves : A principled parametric image generator for training deep restoration models**
 
 [Raphael Achddou](https://rachddou.github.io/), [Yann Gousseau](https://perso.telecom-paristech.fr/gousseau/), [Said Ladjal](https://perso.telecom-paristech.fr/ladjal/), [Sabine Susstrunk](https://www.epfl.ch/labs/ivrl/people/susstrunk/)
 
 ## Abstract
 
-Even though Deep Neural Networks (NN) are extremely powerful for image restoration tasks, they have several defects. **(1)** they generalize poorly to unseen image modalities, **(2)** they are strongly biased, **(3)** they are hard to interpret. Achddou et al. proposed to address these problems by replacing standard training datasets with synthetic Dead Leaves images, achieving reasonable performance but not nearly as good as the original methods. We identified that this stochastic image model lacked three key properties: geometry, textures, and depth. In this paper, we present the **Dead Leaves++** model which incorporates this properties. Experimental results show that for both Image Denoising and Single-Image Super-Resolution, training state-of-the-art architectures on such images closes the gap from $1.4 \sim 2$dB to $0.5$dB in terms of PSNR, and greatly improves visual quality. We further show that denoisers trained on our synthetic images are more robust to slight distortions. Finally, we carefully analyze which image properties are necessary to achieve good image restoration results.
+Even though Deep Neural Networks (NN) are extremely powerful for image restoration tasks, they have several limitations. They are poorly understood and suffer from strong biases inherited from the training sets. One way to address these shortcomings is to have a better control over the training sets, in particular by using synthetic sets. In this paper, we propose a synthetic image generator relying on a few simple principles. In particular, we focus on geometric modeling, textures, and a simple modeling of image acquisition. These properties, integrated in a classical Dead Leaves model, enable the creation of efficient training sets. Standard image denoising and super-resolution networks can be trained on such datasets, reaching performance almost on par with training on natural image datasets. As a first step towards explainability, we provide a careful analysis of the considered principles, identifying which image properties are necessary to obtain good performances. Besides, such training also yields better robustness to various geometric and radiometric perturbations of the test sets.
 
 | ![dl++](readme_images/im_first_page_2.png)  ![dl++](readme_images/im_first_page.png) | ![dl](readme_images/im_69809436.png)  ![dl](readme_images/im_69810650.png) |
 | :------------------------------------------------------------------------------: | :--------------------------------------------------------------------: |
@@ -96,10 +96,8 @@ This will create a directory where the weights are stored inside TRAINING_LOGS/
 
 If you just want to test the models you can download the weights on the following [link](todo).
 
-To test the models, you can also run the command `.jobs/test.sh` 
+To test the models, you can also run the command `.jobs/test.sh`
 
 This calls the launcher_test.py function with a set of arguments such as the testing dataset and the model to test.
-
-
 
 ---
