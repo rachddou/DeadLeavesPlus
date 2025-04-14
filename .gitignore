@@ -21,3 +21,4 @@ events.*
 
 !readme_images/*
 !setup.sh
+!default.yaml
