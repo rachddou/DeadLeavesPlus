@@ -40,7 +40,7 @@ This file is organized as follows:
 defaults:
   - override hydra/launcher: joblib
 shape: ## geometry parameters
-  rmin : 10
+  rmin : 20
   rmax : 1000
   alpha: 3.0
   shape_type : "poly"
@@ -71,7 +71,7 @@ io: ## saving parameters
 post_process: ## depth-of-field and other postprocessing functions
   downscaling: True
   dof: True
-  blur_type: "lens"
+  blur_type: "gaussian"
   blur: False
 
 number : 10
