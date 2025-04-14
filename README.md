@@ -93,7 +93,7 @@ This will create a directory where the weights are stored inside TRAINING_LOGS/
 
 ### Testing
 
-If you just want to test the models you can download the weights on the following [link](todo).
+If you just want to test the models you can download the weights on the following [link](https://drive.switch.ch/index.php/s/Bmdq0lOHylwgb9d).
 
 To test the models, you can also run the command `.jobs/test.sh`
 

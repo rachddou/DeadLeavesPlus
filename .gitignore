@@ -22,4 +22,3 @@ events.*
 !readme_images/*
 !setup.sh
 !default.yaml
-!models_zoo/*.pth
