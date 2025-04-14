@@ -88,6 +88,11 @@ def make_grid(width = 100,period = [100],thickness = 3 ,angle = 45):
     grid = rotate_CV(grid,angle)
     return(grid)
 
+
+@njit
+def sample_period(T_min,T_max,n_period):
+    periods = np.floor(T_min + (T_max-T_min)*np.random.power(1/2.5, size=n_period))
+    return(periods)
 @njit
 def variable_oscillations(width,T_min,T_max,n_freq):
     """function that creates a pseudo-periodic pattern with variable frequencies in 1D.
@@ -99,7 +104,7 @@ def variable_oscillations(width,T_min,T_max,n_freq):
         n_freq (_type_): length of the frequency array
     """
     
-    freq_cycles = np.floor(T_min + (T_max-T_min)*np.random.power(1/2.5, size=n_freq))
+    freq_cycles = sample_period(T_min,T_max,n_freq)
     freq_cycles_bis = np.array([int(freq_cycles[i]) for i in range(n_freq)])
     T_full_cycle = np.sum(freq_cycles_bis)
     N_cycles = width//T_full_cycle
@@ -116,7 +121,7 @@ def variable_oscillations(width,T_min,T_max,n_freq):
             start+=period
     return(res)
 
-def make_sinusoid(width = 100, period = [100],angle = 45 ,angle1 = 45,angle2 = 45,variable_freq = False):
+def make_sinusoid(width = 100,angle = 45 ,angle1 = 45,angle2 = 45,variable_freq = False):
     """function that create a pseudo-periodic grey-level pattern based on sinusoidal functions.
     This patterns then serves as an interpolation map either between two colors or two texture maps.
 
@@ -128,33 +133,33 @@ def make_sinusoid(width = 100, period = [100],angle = 45 ,angle1 = 45,angle2 = 4
         angle2 (int, optional): rotation applied to the whole sinusoidal field. Defaults to 45.
         variable_freq (bool, optional): Creates a sequence of single periods of random length. Defaults to False.
     """
-
+    T_min = 5
+    T_max = 50
+    single_dim = np.random.random()>0.5
     if variable_freq:
-        T_min = 5
-        T_max = 50
         sinusoid =  variable_oscillations(2*width,T_min,T_max,20)
     else:
+        period = sample_period(T_min,T_max,1)
         sinusoid = np.sin(((2*np.pi)/period[0])*np.arange(0,2*width))
     
 
     sinusoid = rotate_CV(np.tile(sinusoid,(2*width,1)),angle)
 
-    if len(period)==2:
+    if not(single_dim):
         if variable_freq:
-            T_min = 5
-            T_max = 50
             sinusoid_y =  variable_oscillations(2*width,T_min,T_max,20)
         else:
-            sinusoid_y = np.sin(((2*np.pi)/period[1])*np.arange(0,2*width))
+            period = sample_period(T_min,T_max,1)
+            sinusoid_y = np.sin(((2*np.pi)/period[0])*np.arange(0,2*width))
         sinusoid_y = np.tile(sinusoid_y,(2*width,1)).T
         sinusoid_y = rotate_CV(sinusoid_y,angle1)
         sinusoid  = sinusoid*sinusoid_y
 
 
     #ad hoc ok
-    alpha = np.random.uniform(1,10)
-    sinusoid = sigmoid(sinusoid,alpha)
-    sinusoid = (sinusoid-sigmoid(np.array([0]),alpha))/(sigmoid(np.array([1]),alpha)-sigmoid(np.array([0]),alpha))
+    lamda = np.random.uniform(1,10)
+    sinusoid = sigmoid(sinusoid,lamda)
+    sinusoid = (sinusoid-sigmoid(np.array([0]),lamda))/(sigmoid(np.array([1]),lamda)-sigmoid(np.array([0]),lamda))
 
     sinusoid = 0.5+ 0.5*sinusoid
     sinusoid = normalize(rotate_CV(sinusoid,angle2)[width//2:-width//2,width//2:-width//2])
@@ -191,7 +196,7 @@ def pattern_patch_two_colors(color_1,color_2,width=100,period=[100],thickness = 
     pattern = np.zeros((width,width))
 
     if type == "sin":
-        pattern = make_sinusoid(width = width,period = period,angle = angle,variable_freq=(np.random.random()>0.5))
+        pattern = make_sinusoid(width = width,angle = angle,variable_freq=(np.random.random()>0.5))
     elif type == "grid":
         pattern = make_grid(width = width,period = period,angle = angle ,thickness = thickness)
 
@@ -268,12 +273,12 @@ def linear_color_gradient(color_1,color_2,width,angle, k = 0.5,color_space = "la
         final_img = np.uint8(255*lab2rgb(final_img))
     return(final_img)
 
-def sigmoid(x,alpha):
+def sigmoid(x,lamda):
     """
     sigmoid function to transform the sinusoid in a sharper transition
     """
-    sig = 1/(1+np.exp(-alpha*(x)))
-    if alpha >=20:
+    sig = 1/(1+np.exp(-lamda*(x)))
+    if lamda >=20:
         sig[sig>0.5] = 1
         sig[sig<=0.5] = 0
     return(sig)
@@ -540,13 +545,7 @@ def mixing_materials_v2(tmp1 = np.random.randint(0,255,(100,100,3)),tmp2 = np.ra
         angle2 = np.random.uniform(-22.5,22.5)
         #ad hoc proportion
         
-        ## CHANGE THAT BECAUSE IT IS NOT JUSTIFIED!!
-        two_dim = np.random.random()>0.1
-        if two_dim:
-            period_sin = [np.random.randint(4,15),np.random.randint(4,15)]
-        else:
-            period_sin = [np.random.randint(5,20)]
-        sin = make_sinusoid(width = width,period = period_sin,angle = angle,angle1 = angle1,angle2 = angle2, variable_freq=(np.random.random()>0.5))
+        sin = make_sinusoid(width = width,angle = angle,angle1 = angle1,angle2 = angle2, variable_freq=(np.random.random()>0.5))
         if warp:
             sin = np.clip(generate_perturbation(sin),0,1)
     else:
@@ -631,7 +630,7 @@ def perspective_shift(image):
     img = Image.fromarray(image)
     alpha =  2
     beta  = int(size//4)
-    mode = np.random.randint(0,4)
+    mode = np.random.randint(0,3)
 
     coeffs = find_coeffs(
         [(0, 0), (0, size), (size//alpha, size -  beta), (size//alpha, beta)],
@@ -641,8 +640,7 @@ def perspective_shift(image):
             Image.BICUBIC)
 
     img = np.array(img)
-    yo = 0
-    result = img[beta:size-beta,    yo :size//alpha]
+    result = img[beta:size-beta,0:size//alpha]
     if mode == 0 :
         result = np.fliplr(result)
     elif mode == 1 :
