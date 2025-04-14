@@ -26,7 +26,7 @@ sh setup.sh
 
 ### Data Generation
 
-In order to generate the final Dead Leaves++, run the following command:
+In order to generate  VibrantLeaves images, run the following command:
 
 ```
 python image_generation.py
@@ -50,7 +50,8 @@ task: 1
 
 texture: ## texture parameters
   texture: True
-  texture_types: ["gradient","freq_noise","texture_mixes"]
+  texture_types: ["sin","freq_noise","texture_mixes"]
+  texture_type_frequency:[0.17,0.67,0.16] #must sum to 1
   texture_gen: True
   warp: True
   rdm_phase: False
@@ -89,14 +90,24 @@ If you don't want to bother with launching data generation, here's a link to dow
 
 Once the images are generated you can run the command `.jobs/train.sh`
 
-This will create a directory where the weights are stored inside TRAINING_LOGS/
+This will create a directory where the weights are stored inside `TRAINING_LOGS/`
 
 ### Testing
 
+#### Denoising
+
 If you just want to test the models you can download the weights on the following [link](https://drive.switch.ch/index.php/s/Bmdq0lOHylwgb9d).
 
-To test the models, you can also run the command `.jobs/test.sh`
+You should also download the [testsets](https://drive.switch.ch/index.php/s/jfh3N5ZNv1KVPpP) and place them in the `datasets/test_sets/` folder.
+
+To test the models, you can run the command `.jobs/test.sh`
 
 This calls the launcher_test.py function with a set of arguments such as the testing dataset and the model to test.
+
+#### Super-resolution
+
+To test the SWIN-IR lightweight super-resolution model, we provide the weights on the following [link](https://drive.switch.ch/index.php/s/uCdAIpnKEfE09xJ).
+
+Please refer to the official implementation for testing/training the models: [swin-IR](https://github.com/JingyunLiang/SwinIR?tab=readme-ov-file).
 
 ---
