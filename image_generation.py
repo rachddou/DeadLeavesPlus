@@ -5,12 +5,10 @@ import skimage.io as skio
 from multiprocessing import Pool
 from time import time, clock_gettime, CLOCK_MONOTONIC, sleep
 import hydra
-from dead_leaves_generation.disk_dict import *
-dict_instance = np.load('npy/dict.npy',allow_pickle=True)
 from skimage.color import rgb2gray
 from dead_leaves_generation.dead_leaves_class import Textures, Deadleaves 
 
-
+dict_instance = np.load('npy/dict.npy',allow_pickle=True)
 
 
 def image_gen(object,config):
@@ -66,10 +64,10 @@ def main(config):
     # object creation
     if config.image_type  == "dead_leaves":
         object  = Deadleaves(rmin = config.shape.rmin,rmax = config.shape.rmax,alpha = config.shape.alpha,width = config.size,natural = config.color.natural, path = config.color.color_path,
-                                shape_type = config.shape.shape_type,texture_types=config.texture.texture_types, texture = config.texture.texture,gen = config.texture.texture_gen,warp = config.texture.warp,
+                                shape_type = config.shape.shape_type,texture_types=config.texture.texture_types,texture_type_frequency=config.texture.texture_type_frequency, texture = config.texture.texture,gen = config.texture.texture_gen,warp = config.texture.warp,
                              rdm_phase = config.texture.rdm_phase,perspective=config.texture.perspective, texture_path= config.texture.texture_path)
     elif config.image_type  == "textures":
-        object = Textures(width = config.size,natural = config.color.natural, path = config.color.color_path, texture_types=config.texture.texture_types,warp = config.texture.warp)
+        object = Textures(width = config.size,natural = config.color.natural, path = config.color.color_path, texture_types=config.texture.texture_types,texture_type_frequency=config.texture.texture_type_frequency,warp = config.texture.warp)
     else:
         raise Exception("wrong image type name")
     for _ in range(config.number):

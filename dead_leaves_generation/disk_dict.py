@@ -24,4 +24,4 @@ def disk_dict(r_min,r_max):
     np.save("npy/dict.npy", disk_d)
 
 
-# disk_dict(1,1000)
+disk_dict(1,1000)

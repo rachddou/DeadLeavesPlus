@@ -16,7 +16,7 @@ from dead_leaves_generation.polygons_maker_bis import binary_polygon_generator, 
 dict_instance = np.load('npy/dict.npy',allow_pickle=True)
 
 class Textures:
-    def __init__(self,width = 1000,natural = True, path = "", texture_types = ["sin"],img_source = np.random.randint(0,255,(1000,1000,3)),warp = True,rdm_phase = False):
+    def __init__(self,width = 1000,natural = True, path = "", texture_types = ["sin"],texture_type_frequency = [1],img_source = np.random.randint(0,255,(1000,1000,3)),warp = True,rdm_phase = False):
 
         self.width = width
         self.natural = natural
@@ -35,6 +35,7 @@ class Textures:
         if self.natural:
             self.source_image_sampling()
         self.texture_type_lists = texture_types
+        self.texture_type_frequency = texture_type_frequency
         self.texture_type = texture_types[0]
         self.sample_texture_type()
 
@@ -60,7 +61,7 @@ class Textures:
             single1 = np.random.random()<0.1
             single2 = np.random.random()<0.1
             if self.warp:
-                warp = np.random.random()<0.75
+                warp = np.random.random()<0.5
             else:
                 warp = False
             s = np.random.uniform(10,20)
@@ -73,33 +74,16 @@ class Textures:
         else:
             t_min,t_max= 20,200
             if self.perspective_shift:
-                self.perspective_var = np.random.random()>0.7
+                self.perspective_var = np.random.random()>0.5
 
             color = np.uint8(self.img_source[np.random.randint(0,self.w),np.random.randint(0,self.l),:])
             color_2 = np.uint8(self.img_source[np.random.randint(0,self.w),np.random.randint(0,self.l),:])
-
-            single_dim = np.random.random()<0.5
-            t_min,t_max = 4,20
-
-            if single_dim:
-                period = [np.random.randint(t_min,t_max)]
-            else:
-                period = [np.random.randint(t_min,t_max),np.random.randint(t_min,t_max)]
-
-
-            
-            p_min = min(period)
-            s= max(5.,np.random.uniform(p_min/4., p_min/2.))
-            t = max(4.,np.random.uniform(s/2.,s))
             thickness =  random.randint(1,3)
             if self.warp:
-                warp_var = np.random.random()<0.75
+                warp_var = np.random.random()<0.5
             else:
                 warp_var = False
-            color_component = pattern_patch_two_colors(color, color_2,width=width,period = period,angle = angle,thickness = thickness,warp = warp_var, type = self.texture_type)
-            if self.rdm_phase:
-                if np.random.random() >0.33:
-                    color_component = random_phase_im(color_component)
+            color_component = pattern_patch_two_colors(color, color_2,width=width,angle = angle,thickness = thickness,warp = warp_var, type = self.texture_type)
         return(color_component)
     
     def source_image_sampling(self):
@@ -114,14 +98,17 @@ class Textures:
     def sample_texture_type(self):
         if len(self.texture_type_lists) == 1:
             self.texture_type = self.texture_type_lists[0]
-        if self.texture_type_lists == ["gradient","sin"]:
-            self.texture_type = np.random.choice(self.texture_type_lists,p = [0.5,0.5])
-        if self.texture_type_lists == ["gradient","sin","grid"]:
-            self.texture_type = np.random.choice(self.texture_type_lists,p = [0.34,0.33,0.33])
-        if self.texture_type_lists == ["gradient","sin","grid","freq_noise"]:
-            self.texture_type = np.random.choice(self.texture_type_lists,p = [0.1,0.4,0.1,0.4])
-        if self.texture_type_lists == ["gradient","sin","grid","freq_noise","texture_mixes"]:
-            self.texture_type = np.random.choice(self.texture_type_lists,p = [0.05,0.05,0.05,0.7,0.15])
+        else:
+            self.texture_type = np.random.choice(self.texture_type_lists,p = self.texture_type_frequency)
+            
+        # if self.texture_type_lists == ["gradient","sin"]:
+        #     self.texture_type = np.random.choice(self.texture_type_lists,p = [0.5,0.5])
+        # if self.texture_type_lists == ["gradient","sin","grid"]:
+        #     self.texture_type = np.random.choice(self.texture_type_lists,p = [0.34,0.33,0.33])
+        # if self.texture_type_lists == ["gradient","sin","grid","freq_noise"]:
+        #     self.texture_type = np.random.choice(self.texture_type_lists,p = [0.1,0.4,0.1,0.4])
+        # if self.texture_type_lists == ["sin","freq_noise","texture_mixes"]:
+        #     self.texture_type = np.random.choice(self.texture_type_lists,p = [0.17,0.67,0.16])
 
     def generate_texture(self,width = 100,angle = 45):
         t0 = time()
@@ -154,7 +141,7 @@ class Textures:
 
 
 class Deadleaves(Textures):
-    def __init__(self,rmin = 1,rmax = 1000,alpha = 3,width = 1000,natural = True, path = "",texture_path = "", shape_type = "poly",texture_types = ["sin"], texture = True,gen = False,warp = True,rdm_phase = False, perspective = True, img_source = np.random.randint(0,255,(1000,1000,3))):
+    def __init__(self,rmin = 1,rmax = 1000,alpha = 3,width = 1000,natural = True, path = "",texture_path = "", shape_type = "poly",texture_types = ["sin"],texture_type_frequency = [1], texture = True,gen = False,warp = True,rdm_phase = False, perspective = True, img_source = np.random.randint(0,255,(1000,1000,3))):
         super(Textures).__init__()
         self.rmin = rmin
         self.rmax = rmax
@@ -168,6 +155,7 @@ class Deadleaves(Textures):
         self.shape_type = shape_type
         self.texture = texture
         self.texture_type_lists = texture_types
+        self.texture_type_frequency = texture_type_frequency
         self.texture_type = self.sample_texture_type()
         self.perspective_shift = perspective
         self.perspective_var = True
