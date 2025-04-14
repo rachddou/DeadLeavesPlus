@@ -17,3 +17,7 @@ events.*
 *.DS_Store
 *.yaml
 *.log
+*.png 
+
+!readme_images/*
+!setup.sh
