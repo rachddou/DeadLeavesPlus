@@ -90,7 +90,7 @@ If you don't want to bother with launching data generation, here's a link to dow
 
 ### Training
 
-Once the images are generated you can run the command `.jobs/train.sh`
+Once the images are generated, you can run the command `.jobs/train.sh`
 
 This will create a directory where the weights are stored inside `TRAINING_LOGS/`
 
@@ -111,5 +111,3 @@ This calls the launcher_test.py function with a set of arguments such as the tes
 To test the SWIN-IR lightweight super-resolution model, we provide the weights on the following [link](https://drive.switch.ch/index.php/s/uCdAIpnKEfE09xJ).
 
 Please refer to the official implementation for testing/training the models: [swin-IR](https://github.com/JingyunLiang/SwinIR?tab=readme-ov-file).
-
----
