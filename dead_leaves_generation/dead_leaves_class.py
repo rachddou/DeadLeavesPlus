@@ -16,7 +16,7 @@ from dead_leaves_generation.polygons_maker_bis import binary_polygon_generator, 
 dict_instance = np.load('npy/dict.npy',allow_pickle=True)
 
 class Textures:
-    def __init__(self,width = 1000,natural = True, path = "", texture_types = ["sin"],texture_type_frequency = [1],img_source = np.random.randint(0,255,(1000,1000,3)),warp = True,rdm_phase = False):
+    def __init__(self,width = 1000,natural = True, path = "", texture_types = ["sin"],texture_type_frequency = [1],slope_range = [0.5,2.5],img_source = np.random.randint(0,255,(1000,1000,3)),warp = True,rdm_phase = False):
 
         self.width = width
         self.natural = natural
@@ -32,10 +32,12 @@ class Textures:
         self.resulting_image = np.ones((width,width,3), dtype = np.uint8)
         self.perspective_shift = False
         self.perspective_var = True
+        
         if self.natural:
             self.source_image_sampling()
         self.texture_type_lists = texture_types
         self.texture_type_frequency = texture_type_frequency
+        self.slope_range = slope_range
         self.texture_type = texture_types[0]
         self.sample_texture_type()
 
@@ -53,7 +55,7 @@ class Textures:
 
 
         if  self.texture_type == "freq_noise":
-            slope = np.random.uniform(0.5,2.5)
+            slope = np.random.uniform(self.slope_range[0],self.slope_range[1])
             #color_component = freq_noise(self.img_source,width=self.width,slope = slope)
             color_component = freq_noise(self.random_patch_selection(),width=width,slope = slope)
             
@@ -69,7 +71,9 @@ class Textures:
             thresh = np.random.randint(5,50)
             poss = [["sin"],["grid"]]
             mixing_type  = np.random.choice(np.arange(0,2,1),p = np.array([0.9,0.1])) 
-            color_component = mixing_materials_v2(tmp1 = self.random_patch_selection(),tmp2 = self.random_patch_selection(),single_color1=single1,single_color2=single2,mixing_types=poss[mixing_type],width = width,thresh_val = thresh,warp = warp)
+            color_component = mixing_materials_v2(tmp1 = self.random_patch_selection(),tmp2 = self.random_patch_selection(),single_color1=single1,\
+                                                  single_color2=single2,mixing_types=poss[mixing_type],\
+                                                  width = width,thresh_val = thresh,warp = warp)
         
         else:
             t_min,t_max= 20,200
@@ -95,21 +99,13 @@ class Textures:
         self.w = self.img_source.shape[0]
         self.l = self.img_source.shape[1]
         print(self.files[ind])
+        
     def sample_texture_type(self):
         if len(self.texture_type_lists) == 1:
             self.texture_type = self.texture_type_lists[0]
         else:
             self.texture_type = np.random.choice(self.texture_type_lists,p = self.texture_type_frequency)
             
-        # if self.texture_type_lists == ["gradient","sin"]:
-        #     self.texture_type = np.random.choice(self.texture_type_lists,p = [0.5,0.5])
-        # if self.texture_type_lists == ["gradient","sin","grid"]:
-        #     self.texture_type = np.random.choice(self.texture_type_lists,p = [0.34,0.33,0.33])
-        # if self.texture_type_lists == ["gradient","sin","grid","freq_noise"]:
-        #     self.texture_type = np.random.choice(self.texture_type_lists,p = [0.1,0.4,0.1,0.4])
-        # if self.texture_type_lists == ["sin","freq_noise","texture_mixes"]:
-        #     self.texture_type = np.random.choice(self.texture_type_lists,p = [0.17,0.67,0.16])
-
     def generate_texture(self,width = 100,angle = 45):
         t0 = time()
         self.sample_texture_type()
@@ -141,7 +137,7 @@ class Textures:
 
 
 class Deadleaves(Textures):
-    def __init__(self,rmin = 1,rmax = 1000,alpha = 3,width = 1000,natural = True, path = "",texture_path = "", shape_type = "poly",texture_types = ["sin"],texture_type_frequency = [1], texture = True,gen = False,warp = True,rdm_phase = False, perspective = True, img_source = np.random.randint(0,255,(1000,1000,3))):
+    def __init__(self,rmin = 1,rmax = 1000,alpha = 3,width = 1000,natural = True, path = "",texture_path = "", shape_type = "poly",texture_types = ["sin"],texture_type_frequency = [1],slope_range = [0.5,2.5], texture = True,gen = False,warp = True,rdm_phase = False, perspective = True, img_source = np.random.randint(0,255,(1000,1000,3))):
         super(Textures).__init__()
         self.rmin = rmin
         self.rmax = rmax
@@ -156,6 +152,7 @@ class Deadleaves(Textures):
         self.texture = texture
         self.texture_type_lists = texture_types
         self.texture_type_frequency = texture_type_frequency
+        self.slope_range = slope_range
         self.texture_type = self.sample_texture_type()
         self.perspective_shift = perspective
         self.perspective_var = True
@@ -275,10 +272,7 @@ class Deadleaves(Textures):
             shape = random.choice(["disk","poly","rectangle"])
         if shape == "poly":
             shape_1d = binary_polygon_generator(2*(3*radius//2)+1,n= np.random.randint(50,max(100,0.9*radius)), allow_holes=bool(random.getrandbits(1)),smoothing=bool(random.getrandbits(1)))
-            # shape_1d = create_mask((2*radius,2*radius),avg_radius=radius,
-            #             irregularity=np.random.uniform(0.1,0.6),
-            #             spikiness=np.random.uniform(0.1,0.6),
-            #             num_vertices=min(30,radius+2))
+            
             if max(shape_1d.shape[0],shape_1d.shape[1]) >=2*self.rmax+100:
                 scale = (2*self.rmax+100.)/max(shape_1d.shape[0],shape_1d.shape[1])
                 new_size = (int(2*((shape_1d.shape[0]*scale)//2)-1),int(2*((shape_1d.shape[1]*scale)//2)-1))
@@ -332,15 +326,9 @@ class Deadleaves(Textures):
 
             else:
                 if self.gen:
-                    # color_component = self.generate_texture(width=60+2*max(width_shape,length_shape),angle = angle)
                     color_component = self.generate_texture(width=60+max(width_shape,length_shape),angle = angle)
                 else:
                     color_component = self.pick_texture(size = max(width_shape,length_shape))
-                    # if np.random.random() > 1:
-                    #     # conditional resizing for self similarity
-                    #     color_component = self.resize_textures(size = max(width_shape,length_shape),texture=color_component_full_size)
-                    # else:
-                    #     color_component = color_component_full_size
 
 
             h,w = color_component.shape[0],color_component.shape[1]
@@ -389,26 +377,11 @@ class Deadleaves(Textures):
                 else:
                     self.generate_textures_dictionary()
 
-
-        # if self.natural:
-        #     self.source_image_sampling()
-        # self.update_leaves_size_parameters(self.rmin,self.rmax//2)
-        print(self.rmin)
-        print(self.rmax)
-        # self.fetch_textures()
         background,back_mask = self.generate_stack(10*self.interval)
-
         self.clear()
-        # self.update_leaves_size_parameters(self.rmin,self.rmax*2)
-        print(self.rmin)
-        print(self.rmax)
-        # self.fetch_textures()
         plainground,plain_mask = self.generate_stack(self.interval)
         self.clear()
-        # self.update_leaves_size_parameters(self.rmin//2, self.rmax//2)
-        # print(self.rmin)
-        # print(self.rmax)
-        # self.fetch_textures()
+
         foreground,fore_mask = self.generate_stack(int(0.5*self.interval))
 
         # adding the in focus plain ground to the out of focus background
@@ -442,23 +415,7 @@ class Deadleaves(Textures):
                 self.resulting_image = cv2.resize(self.resulting_image,(0,0), fx = 1/2.,fy = 1/2. , interpolation = cv2.INTER_AREA)
             self.resulting_image = np.uint8(self.resulting_image)
 
-        # self.textures   = []
-        # #self.fetch_textures()
-        # self.generate_textures_dictionary()
 
-        # self.binary_image = np.ones((width,width), dtype = bool)
-        # self.resulting_image = np.ones((width,width,3), dtype = np.uint8)
-
-        # self.vamin = 1/(rmax**(alpha-1))
-        # self.vamax = 1/(rmin**(alpha-1))
-        # theoretical_n_shapes = theoretical_number_disks(0.002,rmin,rmax,width)
-        # interval = int(theoretical_n_shapes)
-        # print(interval)
-        # if interval <10:
-        #     interval = 1
-        # if interval >10:
-        #     interval = interval//10
-        # self.interval = interval
             
 
 

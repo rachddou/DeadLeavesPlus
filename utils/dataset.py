@@ -32,6 +32,77 @@ def img_to_patches(img, win, stride=1):
             res[:, k, :] = np.array(patch[:]).reshape(endc, total_pat_num)
             k = k + 1
     return res.reshape([endc, win, win, total_pat_num])
+
+def prepare_data_curriculum(root_path, \
+        val_data_path, \
+        max_num_patches=None, \
+        filenames = ['h5files/train_color.h5','h5files/val_color.h5'],\
+        gray_mode=False):
+    types = ('*.bmp', '*.png')
+
+    sub_directory_paths = [os.path.join(root_path,path) for path in os.listdir(root_path)]
+    
+    nested_files_list = []
+    for data_path in sub_directory_paths:    
+        files_list = []
+        for tp in types:
+            files_list.extend(glob.glob(os.path.join(data_path, tp)))
+        files_list.sort()
+        nested_files_list.append(files_list)
+    if gray_mode:
+        traindbf = 'h5files/train/'+filenames[0]
+        valdbf = 'h5files/train/'+filenames[1]
+    else:
+        traindbf = 'h5files/train/'+filenames[0]
+        valdbf = 'h5files/train/'+filenames[1]
+
+    if max_num_patches is None:
+        max_num_patches = 500000
+        
+    with h5py.File(traindbf, 'w') as h5f:
+        counter = 0
+        for currciculum  in range(len(nested_files_list)):
+            files_list = nested_files_list[curriculum]
+            sub_counter = 0
+            while sub_counter < len(files_list) and counter < max_num_patches:
+                img_original = cv2.imread(files_list[i])
+
+                if not gray_mode:
+                    img = (cv2.cvtColor(img_original, cv2.COLOR_BGR2RGB)).transpose(2, 0, 1)
+                else:
+                    img = cv2.cvtColor(img_original, cv2.COLOR_BGR2GRAY)
+                    img = np.expand_dims(img, 0)
+                img = normalize(img)
+                
+                h5f.create_dataset("{}_{}".format(str(curriculum).zfill(2),str(counter).zfill(8)), data=img)
+                counter+=1
+                sub_counter += 1
+
+    print('\n> Total')
+    print('\ttraining set, # samples %d' % counter)
+    # validation database
+    print('\n> Validation database')
+    files = []
+    for tp in types:
+        files.extend(glob.glob(os.path.join(val_data_path, tp)))
+    files.sort()
+    h5f = h5py.File(valdbf, 'w')
+    val_num = 0
+    for i, item in enumerate(files):
+        print("\tfile: %s" % item)
+        img = cv2.imread(item)
+        if not gray_mode:
+            # C. H. W, RGB image
+            img = (cv2.cvtColor(img, cv2.COLOR_BGR2RGB)).transpose(2, 0, 1)
+        else:
+            # C, H, W grayscale image (C=1)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            img = np.expand_dims(img, 0)
+            img =  normalize(img)
+        h5f.create_dataset(str(val_num), data=img)
+        val_num += 1
+    h5f.close()
+    
 def prepare_data_bis(data_paths, \
         val_data_path, \
         max_num_patches=None, \
