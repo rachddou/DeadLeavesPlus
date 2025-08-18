@@ -1,18 +1,18 @@
 defaults:
   - override hydra/launcher: joblib
 shape:
-  rmin : 20
+  rmin : 2
   rmax : 500
   alpha: 3.0
-  shape_type : "poly"
+  shape_type : "disk"
   multiple_shapes : False
 
 task: 1
 
 texture:
-  texture: True
+  texture: False
   texture_types: ["sin","freq_noise","texture_mixes"]
-  texture_type_frequency: [0.33,0.67,0.16] # has to sum to 1
+  texture_type_frequency: [0.17,0.67,0.16] # has to sum to 1
   texture_gen: True
   warp: True
   rdm_phase: False
@@ -31,8 +31,8 @@ io:
 
 post_process:
   downscaling: True
-  dof: True
-  blur_type: "lens"
+  dof: False
+  blur_type: "None"
   blur: False
 
 number : 10

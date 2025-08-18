@@ -337,8 +337,10 @@ def train_drunet(args):
             param_group["lr"] = current_lr
         print('learning rate %f' % current_lr)
         rdm_sampler = torch.utils.data.RandomSampler(dataset_train, replacement=True, num_samples=1600000, generator=None)
+        
         loader_train = DataLoader(dataset=dataset_train,sampler = rdm_sampler, num_workers=20, \
             batch_size=16)
+        
         for i, data in enumerate(loader_train, 0):
             if i>= 100000 :
                 break

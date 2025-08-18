@@ -35,11 +35,21 @@ def img_to_patches(img, win, stride=1):
 
 def prepare_data_curriculum(root_path, \
         val_data_path, \
+        patch_size, \
+        strides, \
+        scale_numbers,\
         max_num_patches=None, \
-        filenames = ['h5files/train_color.h5','h5files/val_color.h5'],\
+        filenames = ['train/','val/'], \
+        aug_times=1, \
         gray_mode=False):
     types = ('*.bmp', '*.png')
-
+    if scale_numbers == 1:
+        scales = [1]
+    elif scale_numbers == 2:
+        scales = [1, 0.6]
+    elif scale_numbers ==3:
+        scales = [1, 0.8,0.65]
+        
     sub_directory_paths = [os.path.join(root_path,path) for path in os.listdir(root_path)]
     
     nested_files_list = []
@@ -49,22 +59,27 @@ def prepare_data_curriculum(root_path, \
             files_list.extend(glob.glob(os.path.join(data_path, tp)))
         files_list.sort()
         nested_files_list.append(files_list)
-    if gray_mode:
-        traindbf = 'h5files/train/'+filenames[0]
-        valdbf = 'h5files/train/'+filenames[1]
-    else:
-        traindbf = 'h5files/train/'+filenames[0]
-        valdbf = 'h5files/train/'+filenames[1]
+        
+        
+    if not(os.path.isdir("datasets/h5files/"+filenames[0])):
+        os.makedirs("datasets/h5files/"+filenames[0])
+    if not(os.path.isdir("datasets/h5files/"+filenames[1])):
+        os.makedirs("datasets/h5files/"+filenames[1])
+    traindbf = os.path.join("datasets/h5files/"+filenames[0], "train.h5")
+    valdbf = os.path.join("datasets/h5files/"+filenames[1], "val.h5")
 
     if max_num_patches is None:
         max_num_patches = 500000
         
     with h5py.File(traindbf, 'w') as h5f:
         counter = 0
-        for currciculum  in range(len(nested_files_list)):
+        for curriculum in range(len(nested_files_list)):
+            print(curriculum)
+            stride = strides[curriculum]
             files_list = nested_files_list[curriculum]
-            sub_counter = 0
-            while sub_counter < len(files_list) and counter < max_num_patches:
+            file_counter = 0
+            patch_counter = 0
+            while file_counter < len(files_list) and patch_counter < max_num_patches:
                 img_original = cv2.imread(files_list[i])
 
                 if not gray_mode:
@@ -72,11 +87,16 @@ def prepare_data_curriculum(root_path, \
                 else:
                     img = cv2.cvtColor(img_original, cv2.COLOR_BGR2GRAY)
                     img = np.expand_dims(img, 0)
-                img = normalize(img)
-                
-                h5f.create_dataset("{}_{}".format(str(curriculum).zfill(2),str(counter).zfill(8)), data=img)
-                counter+=1
-                sub_counter += 1
+
+                patches = img_to_patches(img, win=patch_size, stride=stride)
+                for nx in range(patches.shape[3]):
+                    data = np.uint8(np.clip(data_augmentation(patches[:, :, :, nx].copy(), \
+                            np.random.randint(0, 7)),0,255))
+                    h5f.create_dataset("{}_{}".format(str(curriculum).zfill(2),str(counter).zfill(8)), data=img)                    
+                    patch_counter+=1
+                file_counter += 1
+            counter+=patch_counter
+            
 
     print('\n> Total')
     print('\ttraining set, # samples %d' % counter)
@@ -94,11 +114,12 @@ def prepare_data_curriculum(root_path, \
         if not gray_mode:
             # C. H. W, RGB image
             img = (cv2.cvtColor(img, cv2.COLOR_BGR2RGB)).transpose(2, 0, 1)
+            
         else:
             # C, H, W grayscale image (C=1)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             img = np.expand_dims(img, 0)
-            img =  normalize(img)
+            
         h5f.create_dataset(str(val_num), data=img)
         val_num += 1
     h5f.close()
@@ -327,6 +348,72 @@ def prepare_data(data_paths, \
     print('\tvalidation set, # samples %d\n' % val_num)
 
 
+    class DifficultyLevelDataset(udata.Dataset):
+        """
+        A PyTorch dataset that loads images from an HDF5 file where data is stored in subgroups by difficulty level.
+        
+        Args:
+            file_path (str): Path to the HDF5 file.
+            transform (callable, optional): Optional transform to be applied on a sample.
+        """
+        def __init__(self, file_path, transform=None):
+            super().__init__()
+            self.file_path = file_path
+            self.transform = transform
+            self.data = {}  # Dictionary to store images by difficulty level
+            self.indices = []  # List of (difficulty, image_id) tuples for indexing
+            
+            # Load the entire dataset into memory
+            self._load_data()
+            
+        def _load_data(self):
+            """Load all data from the HDF5 file into memory as a nested dictionary."""
+            with h5py.File(self.file_path, 'r') as h5f:
+                # Iterate through difficulty levels (1-5)
+                for difficulty in range(1, 6):
+                    # Initialize empty dictionary for this difficulty level
+                    self.data[difficulty] = {}
+                    
+                    # Check if this difficulty level exists in the HDF5 file
+                    if str(difficulty) in h5f:
+                        group = h5f[str(difficulty)]
+                        
+                        # Load all datasets in this difficulty group
+                        for img_key in group.keys():
+                            self.data[difficulty][img_key] = group[img_key][()]
+                            self.indices.append((difficulty, img_key))
+        
+        def __len__(self):
+            """Return the total number of images across all difficulty levels."""
+            return len(self.indices)
+        
+        def __getitem__(self, idx):
+            """
+            Get an image and its difficulty level by index.
+            
+            Args:
+                idx (int): Index of the sample to retrieve
+                
+            Returns:
+                tuple: (image, difficulty_level) where image is a numpy array and 
+                       difficulty_level is an integer from 1 to 5
+            """
+            difficulty, img_key = self.indices[idx]
+            img = self.data[difficulty][img_key]
+            
+            # Convert to float32 and normalize if image is in uint8 format
+            if img.dtype == np.uint8:
+                img = np.float32(img / 255.0)
+            
+            # Convert to PyTorch tensor
+            img = torch.from_numpy(img)
+            
+            # Apply transforms if any
+            if self.transform:
+                img = self.transform(img)
+            
+            return img, difficulty
+
 class HDF5Dataset(udata.Dataset):
     """Represents an abstract HDF5 dataset.
 
@@ -420,3 +507,23 @@ class HDF5Dataset(udata.Dataset):
         fp = self.data_info[i]['file_path']
         return(fp)
 
+
+
+# class Curriculum_dataset(udata.Dataset):
+#     def __init__(self, file_path,load_data,):
+#         super().__init__()
+#         self.file_path = file_path
+#         self.load_data = load_data
+#         self.data = {"level1":{}, "level2":{},"level3":{}, "level4":{}, "level5":{},"level6":{}}
+#         if self.load_data:
+#             self._load_data()
+
+#     def _load_data(self):
+#         with h5py.File(self.file_path) as h5_file:
+#             for dname, ds in h5_file.items():
+#                 self
+
+#     def __getitem__(self, index):
+#         return super().__getitem__(index)
+#     def __len__(self):
+#         return super().__len__()
