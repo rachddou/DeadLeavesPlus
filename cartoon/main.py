@@ -32,8 +32,8 @@ def main(image_path,lambda_value=0.5):
 
 
 if __name__ == "__main__":
-    image_path = '/Users/raphael/Workspace/epfl/code/DeadLeavesPlus/cartoon/img_002_SRF_4_HR.png'  # Replace with your image path
-    lambda_value = 2  # Adjust as needed
+    image_path = '/scratch/Raphael/data/Set14/image_SRF_2/HR/img_002_SRF_2_HR.png'  # Replace with your image path
+    lambda_value = 0.3  # Adjust as needed
     t0 = time()
     cartoon_image = main(image_path, lambda_value)
     t1 = time()
