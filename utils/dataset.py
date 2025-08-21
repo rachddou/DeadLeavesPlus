@@ -33,96 +33,102 @@ def img_to_patches(img, win, stride=1):
             k = k + 1
     return res.reshape([endc, win, win, total_pat_num])
 
-def prepare_data_curriculum(root_path, \
-        val_data_path, \
-        patch_size, \
-        strides, \
-        scale_numbers,\
-        max_num_patches=None, \
-        filenames = ['train/','val/'], \
-        aug_times=1, \
-        gray_mode=False):
-    types = ('*.bmp', '*.png')
-    if scale_numbers == 1:
-        scales = [1]
-    elif scale_numbers == 2:
-        scales = [1, 0.6]
-    elif scale_numbers ==3:
-        scales = [1, 0.8,0.65]
+# def prepare_data_curriculum(root_path, \
+#         val_data_path, \
+#         patch_size, \
+#         strides, \
+#         scale_numbers,\
+#         max_num_patches=None, \
+#         filenames = ['train/','val/'], \
+#         aug_times=1, \
+#         gray_mode=False,
+#         suffix = None):
+#     types = ('*.bmp', '*.png')
+#     if scale_numbers == 1:
+#         scales = [1]
+#     elif scale_numbers == 2:
+#         scales = [1, 0.6]
+#     elif scale_numbers ==3:
+#         scales = [1, 0.8,0.65]
         
-    sub_directory_paths = [os.path.join(root_path,path) for path in os.listdir(root_path)]
+#     sub_directory_paths = [os.path.join(root_path,path) for path in os.listdir(root_path)]
     
-    nested_files_list = []
-    for data_path in sub_directory_paths:    
-        files_list = []
-        for tp in types:
-            files_list.extend(glob.glob(os.path.join(data_path, tp)))
-        files_list.sort()
-        nested_files_list.append(files_list)
+#     nested_files_list = []
+#     for data_path in sub_directory_paths:    
+#         files_list = []
+#         for tp in types:
+#             if suffix:
+#                 len_suffix = len(suffix)
+#                 files_data_type = [f for os.path.join(data_path) if f[-len_suffix-4:-4] == suffix]
+#             else:
+#                 files_data_type = glob.glob(os.path.join(data_path, tp))
+#             files_list.extend(files_data_path)
+#         files_list.sort()
+#         nested_files_list.append(files_list)
         
         
-    if not(os.path.isdir("datasets/h5files/"+filenames[0])):
-        os.makedirs("datasets/h5files/"+filenames[0])
-    if not(os.path.isdir("datasets/h5files/"+filenames[1])):
-        os.makedirs("datasets/h5files/"+filenames[1])
-    traindbf = os.path.join("datasets/h5files/"+filenames[0], "train.h5")
-    valdbf = os.path.join("datasets/h5files/"+filenames[1], "val.h5")
+#     if not(os.path.isdir("datasets/h5files/"+filenames[0])):
+#         os.makedirs("datasets/h5files/"+filenames[0])
+#     if not(os.path.isdir("datasets/h5files/"+filenames[1])):
+#         os.makedirs("datasets/h5files/"+filenames[1])
+#     traindbf = os.path.join("datasets/h5files/"+filenames[0], "train.h5")
+#     valdbf = os.path.join("datasets/h5files/"+filenames[1], "val.h5")
 
-    if max_num_patches is None:
-        max_num_patches = 500000
+#     if max_num_patches is None:
+#         max_num_patches = 500000
         
-    with h5py.File(traindbf, 'w') as h5f:
-        counter = 0
-        for curriculum in range(len(nested_files_list)):
-            print(curriculum)
-            stride = strides[curriculum]
-            files_list = nested_files_list[curriculum]
-            file_counter = 0
-            patch_counter = 0
-            while file_counter < len(files_list) and patch_counter < max_num_patches:
-                img_original = cv2.imread(files_list[i])
+#     with h5py.File(traindbf, 'w') as h5f:
+#         counter = 0
+#         for curriculum in range(len(nested_files_list)):
+#             print(curriculum)
+#             stride = strides[curriculum]
+#             files_list = nested_files_list[curriculum]
+#             file_counter = 0
+#             patch_counter = 0
+#             while file_counter < len(files_list) and patch_counter < max_num_patches:
+#                 img_original = cv2.imread(files_list[i])
 
-                if not gray_mode:
-                    img = (cv2.cvtColor(img_original, cv2.COLOR_BGR2RGB)).transpose(2, 0, 1)
-                else:
-                    img = cv2.cvtColor(img_original, cv2.COLOR_BGR2GRAY)
-                    img = np.expand_dims(img, 0)
+#                 if not gray_mode:
+#                     img = (cv2.cvtColor(img_original, cv2.COLOR_BGR2RGB)).transpose(2, 0, 1)
+#                 else:
+#                     img = cv2.cvtColor(img_original, cv2.COLOR_BGR2GRAY)
+#                     img = np.expand_dims(img, 0)
 
-                patches = img_to_patches(img, win=patch_size, stride=stride)
-                for nx in range(patches.shape[3]):
-                    data = np.uint8(np.clip(data_augmentation(patches[:, :, :, nx].copy(), \
-                            np.random.randint(0, 7)),0,255))
-                    h5f.create_dataset("{}_{}".format(str(curriculum).zfill(2),str(counter).zfill(8)), data=img)                    
-                    patch_counter+=1
-                file_counter += 1
-            counter+=patch_counter
+#                 patches = img_to_patches(img, win=patch_size, stride=stride)
+#                 for nx in range(patches.shape[3]):
+#                     data = np.uint8(np.clip(data_augmentation(patches[:, :, :, nx].copy(), \
+#                             np.random.randint(0, 7)),0,255))
+#                     h5f.create_dataset("{}_{}".format(str(curriculum).zfill(2),str(counter).zfill(8)), data=img)                    
+#                     patch_counter+=1
+#                 file_counter += 1
+#             counter+=patch_counter
             
 
-    print('\n> Total')
-    print('\ttraining set, # samples %d' % counter)
-    # validation database
-    print('\n> Validation database')
-    files = []
-    for tp in types:
-        files.extend(glob.glob(os.path.join(val_data_path, tp)))
-    files.sort()
-    h5f = h5py.File(valdbf, 'w')
-    val_num = 0
-    for i, item in enumerate(files):
-        print("\tfile: %s" % item)
-        img = cv2.imread(item)
-        if not gray_mode:
-            # C. H. W, RGB image
-            img = (cv2.cvtColor(img, cv2.COLOR_BGR2RGB)).transpose(2, 0, 1)
+#     print('\n> Total')
+#     print('\ttraining set, # samples %d' % counter)
+#     # validation database
+#     print('\n> Validation database')
+#     files = []
+#     for tp in types:
+#         files.extend(glob.glob(os.path.join(val_data_path, tp)))
+#     files.sort()
+#     h5f = h5py.File(valdbf, 'w')
+#     val_num = 0
+#     for i, item in enumerate(files):
+#         print("\tfile: %s" % item)
+#         img = cv2.imread(item)
+#         if not gray_mode:
+#             # C. H. W, RGB image
+#             img = (cv2.cvtColor(img, cv2.COLOR_BGR2RGB)).transpose(2, 0, 1)
             
-        else:
-            # C, H, W grayscale image (C=1)
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            img = np.expand_dims(img, 0)
+#         else:
+#             # C, H, W grayscale image (C=1)
+#             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+#             img = np.expand_dims(img, 0)
             
-        h5f.create_dataset(str(val_num), data=img)
-        val_num += 1
-    h5f.close()
+#         h5f.create_dataset(str(val_num), data=img)
+#         val_num += 1
+#     h5f.close()
     
 def prepare_data_bis(data_paths, \
         val_data_path, \
@@ -219,7 +225,8 @@ def prepare_data(data_paths, \
         max_num_patches=None, \
         filenames = ['train/','val/'], \
         aug_times=1, \
-        gray_mode=False):
+        gray_mode=False,
+        suffix = None):
     r"""Builds the training and validations datasets by scanning the
     corresponding directories for images and extracting	patches from them.
 
@@ -250,16 +257,28 @@ def prepare_data(data_paths, \
     for data_path in data_paths:
         files = []
         for tp in types:
-            if ordered :
-                files.extend(glob.glob(os.path.join(data_path, tp)))
-            else :
-                files_list.extend(glob.glob(os.path.join(data_path, tp)))
-        if ordered:
-            files.sort()
-            files_list.append(files)
-    if not ordered:
-        files_list = [list(np.random.permutation(files_list))]
-        print(len(files_list[0]))
+            if suffix:
+                len_suffix = len(suffix)
+                files_data_type = [os.path.join(data_path,f) for f in os.listdir(data_path) if (f[-len_suffix:] == suffix)]
+                print(len(files_data_type))
+            else:
+                files_data_type = glob.glob(os.path.join(data_path, tp))
+            files.extend(files_data_type)
+        files_list.append(files)
+        
+        files_list.sort()
+        
+    #     for tp in types:
+    #         if ordered :
+    #             files.extend(glob.glob(os.path.join(data_path, tp)))
+    #         else :
+    #             files_list.extend(glob.glob(os.path.join(data_path, tp)))
+    #     if ordered:
+    #         files.sort()
+    #         files_list.append(files)
+    # if not ordered:
+    #     files_list = [list(np.random.permutation(files_list))]
+    #     print(len(files_list[0]))
    
     if not(os.path.isdir("datasets/h5files/"+filenames[0])):
         os.makedirs("datasets/h5files/"+filenames[0])

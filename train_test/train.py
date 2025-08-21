@@ -30,6 +30,7 @@ def train_ffdnet(args):
     
 
     print("\t# of training samples: %d\n" % int(len(dataset_train)))
+    print("\t# of training samples: %d\n" % int(len(dataset_val)))
 
     # Init loggers
     if not os.path.exists("TRAINING_LOGS/"+args.log_dir):
@@ -188,7 +189,7 @@ def train_ffdnet(args):
 
         # Validation
         psnr_val = 0
-        for _,valimg in dataset_val:
+        for _,valimg in enumerate(dataset_val):
             img_val = torch.unsqueeze(valimg, 0).float()
             print(img_val.size())
             noise = torch.FloatTensor(img_val.size()).\
@@ -260,11 +261,16 @@ def train_drunet(args):
     """
     # Load dataset
     print('> Loading dataset ...')
-    dataset_train= HDF5Dataset(args.filenames[0], recursive=False, load_data=True, data_cache_size=4)
-    dataset_val = HDF5Dataset(args.filenames[1], recursive=False, load_data=True, data_cache_size=4)
-    
 
+    dataset_val = HDF5Dataset(args.filenames[1], recursive=False, load_data=True, data_cache_size=4)
+    print("\t# of validation samples: %d\n" % int(len(dataset_val)))
+    
+    dataset_train= HDF5Dataset(args.filenames[0], recursive=False, load_data=True, data_cache_size=4)
     print("\t# of training samples: %d\n" % int(len(dataset_train)))
+
+
+    
+    
 
     # Init loggers
     if not os.path.exists("TRAINING_LOGS/"+args.log_dir):
@@ -413,7 +419,7 @@ def train_drunet(args):
 
                 # Validation
                 psnr_val = 0
-                for _,valimg in dataset_val:
+                for _,valimg in enumerate(dataset_val):
                     img_val = torch.unsqueeze(valimg[:,:496,:496], 0).float()
                     print(img_val.size())
                     noise = torch.FloatTensor(img_val.size()).\
