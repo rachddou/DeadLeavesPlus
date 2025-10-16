@@ -44,17 +44,34 @@ class Textures:
         self.sample_texture_type()
 
     def lin_gradient(self,color1,color2,angle = 45):
+        """Generates a linear color gradient between two colors.
+
+        Args:
+            color1 (tuple): The first color (R, G, B).
+            color2 (tuple): The second color (R, G, B).
+            angle (int, optional): The angle of the gradient. Defaults to 45.
+        """
         k = np.random.uniform(0.1,0.5)
         textureMap = linear_color_gradient(color_1 = color1,color_2 = color2,width=self.width,angle = angle, k = k,color_space = "lab")
         return(textureMap)
     
     def random_patch_selection(self):
+        """Selects a random 100x100 patch from the source image.
+        Returns:
+            np.ndarray: The selected patch.
+        """
         x = np.random.randint(0,max(1,self.w - 101))
         y = np.random.randint(0,max(1,self.l - 101))
         random_patch = self.img_source[x:x+100,y:y+100]
         return(random_patch)
     
-    def generate_source_texture(self,width = 1000, angle = 45,single_color = True):
+    def generate_source_texture(self,width = 1000):
+        """
+        function that generates a texture map from either a color noise or a bilevel texture mixer
+
+        Args:
+            width (int, optional): size of the texture map. Defaults to 1000.
+        """
         if  self.texture_type == "freq_noise":
             colorNoiseSlope = np.random.uniform(self.slope_range[0],self.slope_range[1])
             textureMap = sample_color_noise(self.random_patch_selection(),width=width,slope = colorNoiseSlope)
@@ -85,6 +102,9 @@ class Textures:
         return(textureMap)
     
     def source_image_sampling(self):
+        """Selects a random source image from the specified directory.
+        Updates the img_source, w, and l attributes of the class.
+        """
         if not(self.files):
             self.files = [os.path.join(self.path,f) for f in os.listdir(self.path) if os.path.isfile(os.path.join(self.path, f))]
         N = len(self.files)
@@ -95,12 +115,23 @@ class Textures:
         print(self.files[ind])
         
     def sample_texture_type(self):
+        """Samples a texture type from the available list.
+        If only one texture type is available, it is selected by default.
+        """
         if len(self.texture_type_lists) == 1:
             self.texture_type = self.texture_type_lists[0]
         else:
             self.texture_type = np.random.choice(self.texture_type_lists,p = self.texture_type_frequency)
             
     def generate_texture(self,width = 100,angle = 45):
+        """Generates a texture map based on the selected texture type.
+
+        Args:
+            width (int, optional): The width of the texture map. Defaults to 100.
+            angle (int, optional): The angle of the texture map. Defaults to 45.
+        Returns:
+            np.ndarray: The generated texture map.
+        """
         t0 = time()
         self.sample_texture_type()
         tmp_rdm_phase = self.rdm_phase
@@ -180,6 +211,12 @@ class Deadleaves(Textures):
 
 
     def update_leaves_size_parameters(self,rmin,rmax):
+        """Updates the leaf size parameters.
+
+        Args:
+            rmin (float): The minimum radius of the leaves.
+            rmax (float): The maximum radius of the leaves.
+        """
         self.rmin = rmin
         self.rmax = rmax
         self.vamin = 1/(self.rmax**(self.alpha-1))
@@ -195,12 +232,19 @@ class Deadleaves(Textures):
 
         
     def fetch_textures(self):
+        """Fetches textures from the specified texture path.
+        Updates the textures attribute with the loaded textures.
+        """
         files = [os.path.join(self.texture_path,f) for f in os.listdir(self.texture_path)]
         file_id = np.random.choice(len(files),self.n_textures)
         textures = [skio.imread(files[ind])for ind in file_id]
         self.textures =  textures
         return(textures)
     def random_patch_selection(self):
+        """Selects a random patch from the image source.
+        Returns:
+            np.ndarray: A random patch of the image.
+        """
         #check
         x = np.random.randint(0,max(1,self.w - 101))
         y = np.random.randint(0,max(1,self.l - 101))
@@ -208,6 +252,9 @@ class Deadleaves(Textures):
         return(random_patch)
     
     def generate_textures_dictionary(self):
+        """Generates a dictionary of textures with different scales.
+        
+        """
         
         textures = []
         for _ in range(self.n_textures):
@@ -224,6 +271,11 @@ class Deadleaves(Textures):
         self.textures =  textures
 
     def pick_texture(self,size):
+        """Picks a texture from the available textures.
+
+        Args:
+            size (int): The desired size of the texture.
+        """
         current_texture_dict = self.textures[np.random.randint(0,self.n_textures)]
 
         h = current_texture_dict["1"].shape[0]
@@ -243,6 +295,15 @@ class Deadleaves(Textures):
         return(current_texture)
     
     def resize_textures(self,size,texture):
+        """Resizes the given texture to the specified size.
+
+        Args:
+            size (int): The desired size of the texture.
+            texture (np.ndarray): The texture to resize.
+
+        Returns:
+            np.ndarray: The resized texture.
+        """
         h = texture.shape[0]
         max_scale = min(5,h/size)
         scale = 1 +  (max_scale-1)*np.random.power(2/3)
@@ -259,6 +320,10 @@ class Deadleaves(Textures):
         return(texture_resized)
 
     def generate_single_shape_mask(self):
+        """Generates a single shape mask.
+        Returns:
+            tuple: A tuple containing the shape mask and its radius.            
+        """
         radius = self.vamin + (self.vamax-self.vamin)*np.random.random()
         radius = int(1/(radius**(1./(self.alpha-1))))
         shape = self.shape_type
@@ -282,6 +347,13 @@ class Deadleaves(Textures):
         return(shape_1d,radius)
     
     def add_shape_to_binary_mask(self,shape_1d):
+        """Adds a shape to the binary mask.
+
+        Args:
+            shape_1d (np.ndarray): The shape to add.
+        Returns:
+            tuple: A tuple containing the coordinates and the shape mask added.
+        """
         width_shape,length_shape = shape_1d.shape[0],shape_1d.shape[1]
         pos = [np.random.randint(0,self.width),np.random.randint(0,self.width)]
         
@@ -299,6 +371,14 @@ class Deadleaves(Textures):
         return(x_min,x_max,y_min,y_max,shape_mask_1d)
     
     def render_shape(self,shape_mask_1d,radius):
+        """Renders a shape on the image.
+
+        Args:
+            shape_mask_1d (np.ndarray): The binary mask of the shape.
+            radius (int): The radius of the shape.
+        Returns:
+            tuple: A tuple containing the shape mask and the rendered shape.
+        """
         t = time()
         width_shape,length_shape = shape_mask_1d.shape[0],shape_mask_1d.shape[1]
 
@@ -334,7 +414,14 @@ class Deadleaves(Textures):
         return(shape_mask,shape_render)
 
     def generate_stack(self,disk_count):
-
+        """
+        Generates a stack of rendered shapes.
+        
+        Args:
+            disk_count (int): The number of shapes to generate.
+        Returns:
+            tuple: A tuple containing the resulting image and binary mask.
+        """
         for i in range(disk_count):
             shape_1d,radius = self.generate_single_shape_mask()
             x_min,x_max,y_min,y_max,shape_mask_1d = self.add_shape_to_binary_mask(shape_1d)
@@ -349,6 +436,10 @@ class Deadleaves(Textures):
         self.binary_image = np.ones((self.width,self.width), dtype = bool)
 
     def source_image_sampling(self):
+        """Samples a source image from the specified directory.
+        Updates the img_source, w, and l attributes of the class.
+        
+        """
         if not(self.files):
             self.files = [os.path.join(self.path,f) for f in os.listdir(self.path) if os.path.isfile(os.path.join(self.path, f))]
         N = len(self.files)
@@ -359,7 +450,13 @@ class Deadleaves(Textures):
         print(self.files[ind])
 
     def compose_dead_leaves_depth_of_field(self,blur_type,blur_val,fetch = False):
-        
+        """Composes the dead leaves effect with depth of field.
+
+        Args:
+            blur_type (str): The type of blur to apply (e.g., "gaussian", "lens").
+            blur_val (float): The value for the blur (e.g., std).
+            fetch (bool, optional): Whether to fetch textures. Defaults to False.
+        """
         if self.natural:
             self.source_image_sampling()
             if not(self.img_source.shape[2] ==3):
@@ -401,6 +498,12 @@ class Deadleaves(Textures):
         self.resulting_image = np.clip(im2,0,255)
 
     def postprocess(self,blur=True,ds=True):
+        """Post-processing applied to the resulting image.
+
+        Args:
+            blur (bool, optional): Whether to apply Gaussian blur. Defaults to True.
+            ds (bool, optional): Whether to downsample the image. Defaults to True.
+        """
         if blur or ds:
             if blur:
                 blur_value = np.random.uniform(1,3)
