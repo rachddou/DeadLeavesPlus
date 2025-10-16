@@ -9,10 +9,12 @@ import random
 from blurgenerator import lens_blur
 
 
-from dead_leaves_generation.utils import theoretical_number_disks,linear_color_gradient,pattern_patch_two_colors,random_phase_im,freq_noise,mixing_materials_v2,perspective_shift
+# from dead_leaves_generation.utils import theoretical_number_disks,linear_color_gradient,pattern_patch_two_colors,random_phase_im,bilevelTextureMixer,perspective_shift
 from dead_leaves_generation.polygons_maker_bis import binary_polygon_generator, make_rectangle_mask
-
-
+from dead_leaves_generation.utils.texture_generation import bilevelTextureMixer, pattern_patch_two_colors
+from dead_leaves_generation.utils.utils import theoretical_number_disks, linear_color_gradient
+from dead_leaves_generation.utils.colored_noise import sample_color_noise
+from dead_leaves_generation.utils.perspective import perspective_shift
 dict_instance = np.load('npy/dict.npy',allow_pickle=True)
 
 class Textures:
@@ -43,52 +45,44 @@ class Textures:
 
     def lin_gradient(self,color1,color2,angle = 45):
         k = np.random.uniform(0.1,0.5)
-        color_component = linear_color_gradient(color_1 = color1,color_2 = color2,width=self.width,angle = angle, k = k,color_space = "lab")
-        return(color_component)
+        textureMap = linear_color_gradient(color_1 = color1,color_2 = color2,width=self.width,angle = angle, k = k,color_space = "lab")
+        return(textureMap)
     
     def random_patch_selection(self):
         x = np.random.randint(0,max(1,self.w - 101))
         y = np.random.randint(0,max(1,self.l - 101))
         random_patch = self.img_source[x:x+100,y:y+100]
         return(random_patch)
+    
     def generate_source_texture(self,width = 1000, angle = 45,single_color = True):
-
-
         if  self.texture_type == "freq_noise":
-            slope = np.random.uniform(self.slope_range[0],self.slope_range[1])
-            #color_component = freq_noise(self.img_source,width=self.width,slope = slope)
-            color_component = freq_noise(self.random_patch_selection(),width=width,slope = slope)
-            
-        elif self.texture_type == "texture_mixes":
-            single1 = np.random.random()<0.1
-            single2 = np.random.random()<0.1
+            colorNoiseSlope = np.random.uniform(self.slope_range[0],self.slope_range[1])
+            textureMap = sample_color_noise(self.random_patch_selection(),width=width,slope = colorNoiseSlope)
+        else:
+            if self.texture_type == "texture_mixes":
+                # 90% sin 10% grid
+                singleColor1 = np.random.random()<0.1
+                singleColor2 = np.random.random()<0.1
+                textureMixMode = [["sin"],["grid"]]
+                mixMode  = np.random.choice(np.arange(0,2,1),p = np.array([0.9,0.1]))
+                textureMixMode = textureMixMode[mixMode]
+            else:
+                # texture_type in ["sin","grid"]
+                singleColor1 = True
+                singleColor2 = True
+                textureMixMode = [self.texture_type]
             if self.warp:
                 warp = np.random.random()<0.5
             else:
                 warp = False
-            s = np.random.uniform(10,20)
-            t = np.random.uniform(s//2,s)
             thresh = np.random.randint(5,50)
-            poss = [["sin"],["grid"]]
-            mixing_type  = np.random.choice(np.arange(0,2,1),p = np.array([0.9,0.1])) 
-            color_component = mixing_materials_v2(tmp1 = self.random_patch_selection(),tmp2 = self.random_patch_selection(),single_color1=single1,\
-                                                  single_color2=single2,mixing_types=poss[mixing_type],\
-                                                  width = width,thresh_val = thresh,warp = warp)
+            textureMap = bilevelTextureMixer(   color_source_1 = self.random_patch_selection(),\
+                                                color_source_2 = self.random_patch_selection(),\
+                                                single_color1=singleColor1,single_color2=singleColor2,\
+                                                mixing_types=textureMixMode,width = width,\
+                                                thresh_val = thresh,warp = warp)
         
-        else:
-            t_min,t_max= 20,200
-            if self.perspective_shift:
-                self.perspective_var = np.random.random()>0.5
-
-            color = np.uint8(self.img_source[np.random.randint(0,self.w),np.random.randint(0,self.l),:])
-            color_2 = np.uint8(self.img_source[np.random.randint(0,self.w),np.random.randint(0,self.l),:])
-            thickness =  random.randint(1,3)
-            if self.warp:
-                warp_var = np.random.random()<0.5
-            else:
-                warp_var = False
-            color_component = pattern_patch_two_colors(color, color_2,width=width,angle = angle,thickness = thickness,warp = warp_var, type = self.texture_type)
-        return(color_component)
+        return(textureMap)
     
     def source_image_sampling(self):
         if not(self.files):
@@ -322,20 +316,20 @@ class Deadleaves(Textures):
             if grad_vs_texture > 0.95:
                  # linear gradient
                 k = np.random.uniform(0.1,0.5)
-                color_component = linear_color_gradient(color,color_2,width=2*max(width_shape,length_shape)+1,angle = angle, k = k,color_space = "lab")
+                textureMap = linear_color_gradient(color,color_2,width=2*max(width_shape,length_shape)+1,angle = angle, k = k,color_space = "lab")
 
             else:
                 if self.gen:
-                    color_component = self.generate_texture(width=60+max(width_shape,length_shape),angle = angle)
+                    textureMap = self.generate_texture(width=60+max(width_shape,length_shape),angle = angle)
                 else:
-                    color_component = self.pick_texture(size = max(width_shape,length_shape))
+                    textureMap = self.pick_texture(size = max(width_shape,length_shape))
 
 
-            h,w = color_component.shape[0],color_component.shape[1]
+            h,w = textureMap.shape[0],textureMap.shape[1]
             x,y = np.random.randint(0,max(1,h - width_shape)), np.random.randint(0,max(1,w - length_shape))
-            color_component = color_component[x:x+width_shape,y:y+length_shape]
-            # color_component = color_component[np.floor(h//2-width_shape/2).astype(np.uint16):np.floor(h//2+width_shape/2).astype(np.uint16),np.floor(w//2-length_shape/2).astype(np.uint16):np.floor(w//2+length_shape/2).astype(np.uint16),:]
-            shape_render= np.uint8(np.float32(shape_render)*color_component)
+            textureMap = textureMap[x:x+width_shape,y:y+length_shape]
+            # textureMap = textureMap[np.floor(h//2-width_shape/2).astype(np.uint16):np.floor(h//2+width_shape/2).astype(np.uint16),np.floor(w//2-length_shape/2).astype(np.uint16):np.floor(w//2+length_shape/2).astype(np.uint16),:]
+            shape_render= np.uint8(np.float32(shape_render)*textureMap)
         
         return(shape_mask,shape_render)
 
@@ -414,10 +408,6 @@ class Deadleaves(Textures):
             if ds:
                 self.resulting_image = cv2.resize(self.resulting_image,(0,0), fx = 1/2.,fy = 1/2. , interpolation = cv2.INTER_AREA)
             self.resulting_image = np.uint8(self.resulting_image)
-
-
-            
-
 
 if __name__ == "__main__":
     object = Deadleaves(rmin = 20,rmax = 400,alpha = 3,

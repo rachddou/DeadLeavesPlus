@@ -63,10 +63,13 @@ def main(config):
 
     # object creation
     if config.image_type  == "dead_leaves":
-        object  = Deadleaves(rmin = config.shape.rmin,rmax = config.shape.rmax,alpha = config.shape.alpha,width = config.size,natural = config.color.natural, path = config.color.color_path,\
-                            shape_type = config.shape.shape_type,texture_types=config.texture.texture_types,texture_type_frequency=config.texture.texture_type_frequency, slope_range = config.texture.slope_range,\
-                            texture = config.texture.texture,gen = config.texture.texture_gen,warp = config.texture.warp,rdm_phase = config.texture.rdm_phase,\
-                            perspective=config.texture.perspective, texture_path= config.texture.texture_path)
+        object  = Deadleaves(rmin = config.shape.rmin,rmax = config.shape.rmax,alpha = config.shape.alpha,width = config.size,\
+                            natural = config.color.natural, path = config.color.color_path,\
+                            shape_type = config.shape.shape_type,texture_types=config.texture.texture_types,\
+                            texture_type_frequency=config.texture.texture_type_frequency, slope_range = config.texture.slope_range,\
+                            texture = config.texture.texture,gen = config.texture.texture_gen,warp = config.texture.warp,\
+                            rdm_phase = config.texture.rdm_phase,perspective=config.texture.perspective,\
+                            texture_path= config.texture.texture_path)
     elif config.image_type  == "textures":
         object = Textures(width = config.size,natural = config.color.natural, path = config.color.color_path, texture_types=config.texture.texture_types,texture_type_frequency=config.texture.texture_type_frequency,\
                           slope_range = config.texture.slope_range,warp = config.texture.warp)
