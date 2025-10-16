@@ -7,8 +7,7 @@ from time import time
 import cv2
 import random
 from blurgenerator import lens_blur
-
-
+from omegaconf import OmegaConf
 # from dead_leaves_generation.utils import theoretical_number_disks,linear_color_gradient,pattern_patch_two_colors,random_phase_im,bilevelTextureMixer,perspective_shift
 from dead_leaves_generation.polygons_maker_bis import binary_polygon_generator, make_rectangle_mask
 from dead_leaves_generation.utils.texture_generation import bilevelTextureMixer, pattern_patch_two_colors
@@ -18,7 +17,11 @@ from dead_leaves_generation.utils.perspective import perspective_shift
 dict_instance = np.load('npy/dict.npy',allow_pickle=True)
 
 class Textures:
-    def __init__(self,width = 1000,natural = True, path = "", texture_types = ["sin"],texture_type_frequency = [1],slope_range = [0.5,2.5],img_source = np.random.randint(0,255,(1000,1000,3)),warp = True,rdm_phase = False):
+    def __init__(   self,width = 1000,natural = True, path = "",
+                    texture_types = ["sin"],texture_type_frequency = [1],
+                    slope_range = [0.5,2.5],
+                    img_source = np.random.randint(0,255,(1000,1000,3)),
+                    warp = True,rdm_phase = False):
 
         self.width = width
         self.natural = natural
@@ -42,7 +45,31 @@ class Textures:
         self.slope_range = slope_range
         self.texture_type = texture_types[0]
         self.sample_texture_type()
-
+    def _sample_slope_from_ranges(self):
+        """
+        Samples a slope value uniformly from a union of disjoint intervals.
+        
+        Returns:
+            float: The sampled slope value.
+        """
+        if isinstance(OmegaConf.to_object(self.slope_range[0]), (list, tuple)):
+            # Multiple intervals: [[a1,b1], [a2,b2], ...]
+            intervals = self.slope_range
+            # Calculate the lengths of the intervals
+            lengths = [interval[1] - interval[0] for interval in intervals]
+            total_length = sum(lengths)
+            
+            # Choose an interval based on its relative length
+            interval_probs = [length / total_length for length in lengths]
+            chosen_interval = np.random.choice(len(intervals), p=interval_probs)
+            
+            # Sample uniformly within the chosen interval
+            interval = intervals[chosen_interval]
+            slope = np.random.uniform(interval[0], interval[1])
+            return slope
+        else:
+            # Single interval: [a, b]
+            return np.random.uniform(self.slope_range[0], self.slope_range[1])
     def lin_gradient(self,color1,color2,angle = 45):
         """Generates a linear color gradient between two colors.
 
@@ -73,7 +100,7 @@ class Textures:
             width (int, optional): size of the texture map. Defaults to 1000.
         """
         if  self.texture_type == "freq_noise":
-            colorNoiseSlope = np.random.uniform(self.slope_range[0],self.slope_range[1])
+            colorNoiseSlope = self._sample_slope_from_ranges()
             textureMap = sample_color_noise(self.random_patch_selection(),width=width,slope = colorNoiseSlope)
         else:
             if self.texture_type == "texture_mixes":
@@ -97,7 +124,8 @@ class Textures:
                                                 color_source_2 = self.random_patch_selection(),\
                                                 single_color1=singleColor1,single_color2=singleColor2,\
                                                 mixing_types=textureMixMode,width = width,\
-                                                thresh_val = thresh,warp = warp)
+                                                thresh_val = thresh,warp = warp,
+                                                slope_range=self.slope_range)
         
         return(textureMap)
     
@@ -123,7 +151,7 @@ class Textures:
         else:
             self.texture_type = np.random.choice(self.texture_type_lists,p = self.texture_type_frequency)
             
-    def generate_texture(self,width = 100,angle = 45):
+    def generate_texture(self,width = 100):
         """Generates a texture map based on the selected texture type.
 
         Args:
@@ -140,7 +168,7 @@ class Textures:
         if self.texture_type == "gradient":
             color1 = np.uint8(self.img_source[np.random.randint(0,self.w),np.random.randint(0,self.l),:])
             color2 = np.uint8(self.img_source[np.random.randint(0,self.w),np.random.randint(0,self.l),:])
-            res = self.lin_gradient(color1,color2,angle = angle)
+            res = self.lin_gradient(color1,color2,angle = 45)
         else:
             
             if self.texture_type in ["grid","texture_mixes"] and self.rdm_phase:
@@ -148,11 +176,11 @@ class Textures:
             single_color = np.random.random()>0.5
             self.perspective_var = np.random.random()>0.5
             if self.perspective_var and self.perspective_shift:
-                res = self.generate_source_texture(width = 2*width, angle = angle,single_color = single_color)
+                res = self.generate_source_texture(width = 2*width)
                 print("perspective shifting")
                 res = perspective_shift(res)
             else:
-                res = self.generate_source_texture(width = width, angle = angle,single_color = single_color)
+                res = self.generate_source_texture(width = width)
             self.rdm_phase = tmp_rdm_phase
         return(res)
 
@@ -162,7 +190,10 @@ class Textures:
 
 
 class Deadleaves(Textures):
-    def __init__(self,rmin = 1,rmax = 1000,alpha = 3,width = 1000,natural = True, path = "",texture_path = "", shape_type = "poly",texture_types = ["sin"],texture_type_frequency = [1],slope_range = [0.5,2.5], texture = True,gen = False,warp = True,rdm_phase = False, perspective = True, img_source = np.random.randint(0,255,(1000,1000,3))):
+    def __init__(   self,rmin = 1,rmax = 1000,alpha = 3,width = 1000,natural = True, path = "",
+                    texture_path = "", shape_type = "poly",texture_types = ["sin"],texture_type_frequency = [1],
+                    slope_range = [0.5,2.5], texture = True,gen = False,warp = True,rdm_phase = False, perspective = True,
+                    img_source = np.random.randint(0,255,(1000,1000,3))):
         super(Textures).__init__()
         self.rmin = rmin
         self.rmax = rmax
@@ -400,7 +431,7 @@ class Deadleaves(Textures):
 
             else:
                 if self.gen:
-                    textureMap = self.generate_texture(width=60+max(width_shape,length_shape),angle = angle)
+                    textureMap = self.generate_texture(width=60+max(width_shape,length_shape))
                 else:
                     textureMap = self.pick_texture(size = max(width_shape,length_shape))
 
