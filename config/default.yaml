@@ -1,7 +1,7 @@
 defaults:
   - override hydra/launcher: joblib
 shape:
-  rmin : 2
+  rmin : 1
   rmax : 500
   alpha: 3.0
   shape_type : "disk"
@@ -17,7 +17,7 @@ texture:
   warp: True
   rdm_phase: False
   texture_path: ""
-  perspective: False
+  perspective: True
 
 color:
   natural: True
@@ -27,7 +27,7 @@ color:
 
 io:
   path_origin: "datasets/"
-  path: "vibrant_leaves/"
+  path: "dl/"
 
 post_process:
   downscaling: True
@@ -35,7 +35,7 @@ post_process:
   blur_type: "None"
   blur: False
 
-number : 10
+number : 50
 size : 1000
 image_type : "dead_leaves" 
 test: False
