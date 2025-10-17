@@ -48,7 +48,7 @@ def generate_config_files():
             'blur': False
         },
         'number': 10,
-        'size': 500,
+        'size': 512,
         'image_type': "dead_leaves",
         'test': False
     }
@@ -64,7 +64,7 @@ def generate_config_files():
                                   [0.25,0.75,0.],
                                   [0.1,0.9,0.],
                                   [0.15,0.7,0.15]],
-        'slope_range': [[[0.5,2.375]],
+        'slope_range':  [[[0.5,2.375]],
                         [[0.5,1.125],[1.75,2.375]],
                         [1.125,2.375],
                         [0.5,1.125],

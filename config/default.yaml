@@ -1,10 +1,10 @@
 defaults:
   - override hydra/launcher: joblib
 shape:
-  rmin : 10
-  rmax : 1000
+  rmin : 50
+  rmax : 500
   alpha: 3.0
-  shape_type : "poly"
+  shape_type : "rectangle"
   multiple_shapes : False
 
 task: 1
@@ -12,8 +12,8 @@ task: 1
 texture:
   texture: True
   texture_types: ["sin","freq_noise","texture_mixes"]
-  texture_type_frequency: [0.2,0.6,0.2] # has to sum to 1
-  slope_range: [0.5, 2.5]
+  texture_type_frequency: [0.25,0.75,0] # has to sum to 1
+  slope_range: [[0.5, 1.],[2,2.5]]
   texture_gen: True
   warp: True
   rdm_phase: False
@@ -28,7 +28,7 @@ color:
 
 io:
   path_origin: "datasets/"
-  path: "vibrant_leaves/"
+  path: "vibrant_leaves_test/"
 
 post_process:
   downscaling: True
