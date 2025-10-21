@@ -1,5 +1,6 @@
 from utils.dataset import prepare_data
 import argparse
+import os
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=\
@@ -23,7 +24,8 @@ if __name__ == "__main__":
         args.stride = [args.patch_size]
     if args.gray:
         if args.trainset_dir is None:
-            args.trainset_dir = ['datasets/vibrantLeaves']
+            list_dirs = os.listdir('/scratch/Raphael/DeadLeavesPlus/datasets/vibrant_leaves/')
+            args.trainset_dir = list_dirs
         if args.valset_dir is None:
             args.valset_dir = 'datasets/testsets/Set12/'
     else:
