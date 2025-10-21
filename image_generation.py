@@ -46,7 +46,7 @@ def image_gen(object,config):
     return(object)
 
 
-@hydra.main(version_base=None, config_path="./config", config_name="default")
+@hydra.main(version_base=None, config_path="./config/generated_config/", config_name="default")
 def main(config):
     """
     Main function that generates the images based on the configuration file

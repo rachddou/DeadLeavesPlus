@@ -3,7 +3,7 @@ import os
 from itertools import product
 import copy
 
-def generate_config_files():
+def generate_config_files(variations,unique_name = "texture"):
     """
     Génère des fichiers de configuration YAML en combinant différents paramètres.
     Crée un fichier pour chaque combinaison de configurations spécifiées.
@@ -11,7 +11,7 @@ def generate_config_files():
     
     # Configuration de base
     base_config = {
-        'defaults': [{'override': 'hydra/launcher: joblib'}],
+        'defaults': [{'override hydra/launcher': 'joblib'}],
         'shape': {
             'rmin': 10,
             'rmax': 500,
@@ -33,7 +33,7 @@ def generate_config_files():
         },
         'color': {
             'natural': True,
-            'color_path': "/Users/raphael/Workspace/telecom/code/exploration_database_and_code/pristine_images/",
+            'color_path': "/scratch/Raphael/data/pristine_images/",
             'grey': False,
             'partial_images': False
         },
@@ -47,34 +47,17 @@ def generate_config_files():
             'blur_type': "lens",
             'blur': False
         },
-        'number': 10,
+        'number': 2,
         'size': 512,
         'image_type': "dead_leaves",
         'test': False
     }
     
     # Paramètres variables pour générer différentes configurations
-    variations = {
-        'shape_type': ['poly', 'disks', 'rectangles'],
-        'texture_enabled': [True, False],
-        'rmin': [5,10,20,50,100,200],
-        'texture_type_frequency':[[0.,0.9,0.1],
-                                  [0.,0.75,0.25],
-                                  [0.,1.,0.],
-                                  [0.25,0.75,0.],
-                                  [0.1,0.9,0.],
-                                  [0.15,0.7,0.15]],
-        'slope_range':  [[[0.5,2.375]],
-                        [[0.5,1.125],[1.75,2.375]],
-                        [1.125,2.375],
-                        [0.5,1.125],
-                        [1.125,1.75],
-                        [1.75,2.375]]
-        
-    }
+
     
     # Créer le dossier de sortie s'il n'existe pas
-    output_dir = "generated_configs"
+    output_dir = "generated_config"
     os.makedirs(output_dir, exist_ok=True)
     
     config_count = 0
@@ -108,7 +91,7 @@ def generate_config_files():
         
         config['io']['path'] = f"vibrant_leaves/{config_name}/"
         
-        filename = f"config_{config_count:03d}_{config_name}.yaml"
+        filename = f"{unique_name}_config_{config_count:03d}.yaml"
         filepath = os.path.join(output_dir, filename)
         
         # Sauvegarder le fichier YAML
@@ -222,7 +205,35 @@ def generate_specific_configs():
 
 if __name__ == "__main__":
     print("Génération des fichiers de configuration...")
-    generate_config_files()
+    variations_texture = {
+        'shape_type': ['poly', 'disk', 'rectangle'],
+        'texture_enabled':[True],
+        'rmin': [5,10,20,50,100,200],
+        'texture_type_frequency':[[0.,0.9,0.1],
+                                  [0.,0.75,0.25],
+                                  [0.,1.,0.],
+                                  [0.25,0.75,0.],
+                                  [0.1,0.9,0.],
+                                  [0.15,0.7,0.15]],
+        'slope_range':  [[[0.5,2.375]],
+                        [[0.5,1.125],[1.75,2.375]],
+                        [[1.125,2.375]],
+                        [[0.5,1.125]],
+                        [[1.125,1.75]],
+                        [[1.75,2.375]]]
+        
+    }
+    generate_config_files(variations_texture,unique_name = "texture")
+    
+    variations_textureless = {
+        'shape_type': ['poly', 'disk', 'rectangle'],
+        'texture_enabled':[False],
+        'rmin': [5,10,20,50,100,200],
+        'texture_type_frequency':[[0.,0.9,0.1]],
+        'slope_range':  [[[0.5,2.375]]]
+        
+    }
+    generate_config_files(variations_textureless,unique_name = "textureless")
     # print("\nGénération des configurations spécifiques...")
     # # generate_specific_configs()
     # # print("Terminé!")
