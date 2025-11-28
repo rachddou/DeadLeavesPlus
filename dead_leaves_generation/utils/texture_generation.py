@@ -108,6 +108,7 @@ def pattern_patch_two_colors(color_1,color_2,width=100,period=[100],thickness = 
     pattern = np.zeros((width,width))
 
     if type == "sin":
+        # pattern = sample_sinusoid(width = width,angle = angle,variable_freq=False)
         pattern = sample_sinusoid(width = width,angle = angle,variable_freq=(np.random.random()>0.5))
     elif type == "grid":
         pattern = sample_grid(width = width,period = period,angle = angle ,thickness = thickness)

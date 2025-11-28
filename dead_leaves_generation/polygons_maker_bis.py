@@ -46,6 +46,7 @@ def sample_points_circle(n,radius):
         n (int): number of points to generate.
         radius (int): radius of the circle.
     """
+    # distance_to_center = np.sqrt(np.random.uniform(0, radius**2, n))
     distance_to_center = np.random.randint(0,radius,n)
     angle = np.random.uniform(-np.pi,np.pi,n)
     
@@ -54,7 +55,7 @@ def sample_points_circle(n,radius):
     return(np.stack([x,y],axis = -1))
 
 
-def binary_polygon_generator(size, n = 100,concavity = 0.3,allow_holes = True, smoothing = True):
+def binary_polygon_generator(size, n = 100, concavity = 0.3, allow_holes = True, smoothing = True):
     """Generates a binary image of a polygon with a concave hull.
 
     Args:
@@ -75,7 +76,7 @@ def binary_polygon_generator(size, n = 100,concavity = 0.3,allow_holes = True, s
     
     if smoothing:
         min_blur = max(0.5,2*(size/200))
-        max_blur = min(20,5*(size/200))
+        max_blur = min(10,5*(size/200))
         blur_val = np.random.uniform(min_blur,max_blur)
         img = gaussian(img.astype(np.float32),blur_val)
         res = np.zeros(img.shape,dtype=np.bool_)
@@ -83,3 +84,18 @@ def binary_polygon_generator(size, n = 100,concavity = 0.3,allow_holes = True, s
         return(res)
     else:
         return(img)
+    
+    
+    
+if __name__ == "__main__":
+    import skimage.io as skio
+    size = 400
+    for i in range(200):
+        n = random.randint(30,150)
+        concavity = np.random.uniform(0.2,0.5)
+        allow_holes = random.choice([True,False])
+        smoothing = random.choice([True,False])
+        binary_image = 1-binary_polygon_generator(size, n = n, concavity = concavity, allow_holes = allow_holes, smoothing = smoothing)
+
+        binary_image = np.uint8(binary_image*255)
+        skio.imsave(f'../polygons/polygon_{i}.png',binary_image)
