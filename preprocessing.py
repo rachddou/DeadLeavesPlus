@@ -16,6 +16,7 @@ if __name__ == "__main__":
     parser.add_argument("--valset_dir"					,type=str		, default=None  , help='path of validation set')
     parser.add_argument("--max_number_patches", "--m"   ,type=int       , default=None  , help="Maximum number of patches")
     parser.add_argument("--aug_times", "--a"            ,type=int       ,default=1      , help="How many times to perform data augmentation")
+    parser.add_argument("--nested_dir"                  ,action='store_true',help="iterates through all subdirectories if True")
     parser.add_argument("--filenames", "--fn"           , type=str      , nargs = '+'   , default=['train_vl.h5','val_color.h5'],  help="How many times to perform data augmentation")
     # Dirs
     
@@ -24,13 +25,26 @@ if __name__ == "__main__":
         args.stride = [args.patch_size]
     if args.gray:
         if args.trainset_dir is None:
-            list_dirs = os.listdir('/scratch/Raphael/DeadLeavesPlus/datasets/vibrant_leaves/')
+            path = '/scratch/Raphael/DeadLeavesPlus/datasets/vibrant_leaves/'
+            list_dirs = [os.path.join(path,f) for f in os.listdir(path)]
             args.trainset_dir = list_dirs
+        if args.nested_dir:
+            list_dirs = [os.path.join(args.trainset_dir,f) for f in os.listdir(args.trainset_dir)]
+            args.trainset_dir = list_dirs
+            args.stride = [60 for _ in range(len(list_dirs))]
         if args.valset_dir is None:
             args.valset_dir = 'datasets/testsets/Set12/'
     else:
         if args.trainset_dir is None:
-            args.trainset_dir = ['datasets/vibrantLeaves/']
+            path = '/scratch/Raphael/DeadLeavesPlus/datasets/vibrant_leaves/'
+            list_dirs = [os.path.join(path,f) for f in os.listdir(path)]
+            args.trainset_dir = list_dirs
+            args.stride = [60 for _ in range(len(list_dirs))]
+        if args.nested_dir:
+            list_dirs = [os.path.join(args.trainset_dir[0],f) for f in os.listdir(args.trainset_dir[0])]
+            args.trainset_dir = list_dirs
+            args.stride = [128 for _ in range(len(list_dirs))]
+            
         if args.valset_dir is None:
             args.valset_dir = 'datasets/test_sets/Kodak24/'
     

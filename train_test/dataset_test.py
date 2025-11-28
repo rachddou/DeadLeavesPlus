@@ -43,12 +43,13 @@ def test_ffdnet_dataset(**args):
     # Check if input exists and if it is RGB
     im_files = [os.path.join(args['input'], f) for f in os.listdir(args['input']) if os.path.isfile(os.path.join(args['input'], f))]
     try:
-        rgb_den = is_rgb(im_files[0])
+        rgb_den = is_rgb(im_files[1])
     except:
         raise Exception('Could not open the input image')
     N_multi = args['Nmulti']
 
     if rgb_den:
+        print("RGB denoising")
         in_ch = 3
         model_fn = args['model_path']   
     else:
@@ -57,6 +58,7 @@ def test_ffdnet_dataset(**args):
         model_fn = args['model_path']
     #initialize global metrics
     psnr_test_set = 0
+    psnr_test_set_noisy = 0
     ssim_test_set = 0
     acutance_test_set = 0
     PieAPP_test_set = 0
@@ -153,11 +155,9 @@ def test_ffdnet_dataset(**args):
 
         if args['contrast_reduction']:
             ratios = np.zeros(3)
-            means = np.zeros(3)
             for i in range(3):
-                f = 0.2
+                f = 0.1
                 ratios[i] = f/(1e-8+np.abs(imorig[:,i,...].max() -imorig[:,i,...].min()))
-                means[i]= imorig[:,i,...].mean()
                 imorig[:,i,...] = f*(imorig[:,i,...] -imorig[:,i,...].min())/(1e-8+np.abs(imorig[:,i,...].max() -imorig[:,i,...].min()))
                 imorig[:,i,...] = imorig[:,i,...]+0.5-imorig[:,i,...].mean()    
             imorig = np.clip(imorig,0,1)
@@ -219,16 +219,17 @@ def test_ffdnet_dataset(**args):
 
         
         if args['contrast_reduction']:
-            outimg = outim[0,...].detach().cpu().numpy().transpose(1,2,0)
+            # outimg = outim[0,...].detach().cpu().numpy().transpose(1,2,0)
             for i in range(3):
                 outimg[...,i] = (1./f)*(outimg[...,i]-outimg[...,i].min())
-            outimg = np.clip(255*outimg,0,255).astype(np.uint8)
+            # outimg = np.clip(255*outimg,0,255).astype(np.uint8)
         img_orig = variable_to_cv2_image(imorig)
         residual = (img_orig - outimg)
         residual  = (residual -residual.min())/(residual.max() -residual.min())*255
 
         outimg = np.uint8(np.clip(outimg,0,255))
         psnr = compare_psnr(outimg, img_orig)
+        psnr_noisy = compare_psnr(variable_to_cv2_image(imnoisy), img_orig)
         image0, image1 = np.asarray(outimg,dtype = np.float32), np.asarray(img_orig,dtype = np.float32)
         if args["rot_invariance"]:
             mse = np.sum(mask_rotation*(image0-image1)**2)/np.sum(mask_rotation)
@@ -237,7 +238,9 @@ def test_ffdnet_dataset(**args):
         psnr = 10*np.log10((255**2)/mse)
             
         print(psnr)
+        print(psnr_noisy)
         psnr_test_set+= psnr
+        psnr_test_set_noisy+= psnr_noisy
             
         if args['save']:
             if not(os.path.isdir(os.path.join("tests",args["save_dir"]))):
@@ -262,9 +265,11 @@ def test_ffdnet_dataset(**args):
             logger.info("\tNo noise was added, cannot compute PSNR")
         logger.info("\tRuntime {0:0.4f}s".format(stop_t-start_t))
     psnr_test_set*= (1./len(im_files))
+    psnr_test_set_noisy*= (1./len(im_files))
     ssim_test_set*= (1./len(im_files))
     print("SSIM : {}".format(ssim_test_set))
     print("PSNR : {}".format(psnr_test_set))
+    print("PSNR Noisy : {}".format(psnr_test_set_noisy))
 
 
 

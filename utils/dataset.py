@@ -255,6 +255,10 @@ def prepare_data(data_paths, \
     files_list = []
     ordered = True
     for data_path in data_paths:
+        if os.path.exists(data_path):
+            print("Path exists!")
+        else:
+            print(data_path)
         files = []
         for tp in types:
             if suffix:
@@ -300,8 +304,8 @@ def prepare_data(data_paths, \
             train_num = 0
             files = files_list[k]
             i = 0
-            while i < len(files) and train_num < max_num_patches:
-                print(files[i])
+            while i < len(files) and train_num2 < max_num_patches:
+                # print(files[i])
                 imgor = cv2.imread(files[i])
                 
                 # h, w, c = img.shape
@@ -321,8 +325,8 @@ def prepare_data(data_paths, \
                             img = np.expand_dims(img, 0)
                         # img = normalize(img)
                         patches = img_to_patches(img, win=patch_size, stride=stride)
-                        print("\tfile: %s scale %.1f # samples: %d" % \
-                            (files[i], sca, patches.shape[3]*aug_times))
+                        print("\tfile: %s scale %.1f # samples: %d #total : %d" % \
+                            (files[i], sca, patches.shape[3]*aug_times, train_num2))
                         for nx in range(patches.shape[3]):
                             data = np.uint8(np.clip(data_augmentation(patches[:, :, :, nx].copy(), \
                                     np.random.randint(0, 7)),0,255))
@@ -336,7 +340,7 @@ def prepare_data(data_paths, \
                                 train_num += 1
                                 train_num2 +=1
                 i += 1
-            print(train_num)
+            print(train_num2)
 
     # validation database
     print('\n> Validation database')

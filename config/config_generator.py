@@ -16,7 +16,7 @@ def generate_config_files(variations,unique_name = "texture"):
             'rmin': 10,
             'rmax': 500,
             'alpha': 3.0,
-            'shape_type': "poly",
+            'shape_type': "disk",
             'multiple_shapes': False
         },
         'task': 1,

@@ -3,7 +3,8 @@ from dead_leaves_generation.utils.utils import rotate_CV, normalize, sigmoid,thr
 from dead_leaves_generation.utils.geometric_perturbation import generate_perturbation
 from dead_leaves_generation.utils.colored_noise import sample_color_noise
 from numba import njit
-
+TMIN = 5
+TMAX = 100
 def sample_grid(width = 100,period = [100],angle = 45):
     """function that creates a grid pattern with a given orientation
 
@@ -30,21 +31,19 @@ def sample_grid(width = 100,period = [100],angle = 45):
     return(grid)
 
 @njit
-def sample_period(T_min,T_max,n_period):
-    periods = np.floor(T_min + (T_max-T_min)*np.random.power(1/2.5, size=n_period))
+def sample_period(n_period):
+    periods = np.floor(TMIN + (TMAX-TMIN)*np.random.power(1/2.5, size=n_period))
     return(periods)
 @njit
-def variable_oscillations(width,T_min,T_max,n_freq):
+def variable_oscillations(width,n_freq):
     """function that creates a pseudo-periodic pattern with variable frequencies in 1D.
 
     Args:
         width (_type_): width of the final image
-        T_min (_type_): minimal period of the pattern
-        T_max (_type_): maximal period of the pattern
         n_freq (_type_): length of the frequency array
     """
     
-    freq_cycles = sample_period(T_min,T_max,n_freq)
+    freq_cycles = sample_period(n_freq)
     freq_cycles_bis = np.array([int(freq_cycles[i]) for i in range(n_freq)])
     T_full_cycle = np.sum(freq_cycles_bis)
     N_cycles = width//T_full_cycle
@@ -73,35 +72,49 @@ def sample_sinusoid(width = 100,angle = 45 ,angle1 = 45,angle2 = 45,variable_fre
         angle2 (int, optional): rotation applied to the whole sinusoidal field. Defaults to 45.
         variable_freq (bool, optional): Creates a sequence of single periods of random length. Defaults to False.
     """
-    T_min = 5
-    T_max = 50
+    T_min = TMIN
+    T_max = TMAX
     single_dim = np.random.random()>0.5
+    thresh = np.random.uniform(0.05,1,2)
+    lamda = np.random.uniform(1,10,2)
     if variable_freq:
-        sinusoid =  variable_oscillations(2*width,T_min,T_max,20)
+        sinusoid =  variable_oscillations(2*width,20)
     else:
-        period = sample_period(T_min,T_max,1)
+        period = sample_period(1)
         sinusoid = np.sin(((2*np.pi)/period[0])*np.arange(0,2*width))
-    
-
+        
     sinusoid = rotate_CV(np.tile(sinusoid,(2*width,1)),angle)
-
+    sinusoid = 0.5+ 0.5*sinusoid
+    sinusoid[sinusoid>thresh[0]] = 1
+    sinusoid = sigmoid(sinusoid,lamda[0])
+    sinusoid = (sinusoid-sigmoid(np.array([0]),lamda[0]))/(sigmoid(np.array([1]),lamda[0])-sigmoid(np.array([0]),lamda[0]))
+    
+    
     if not(single_dim):
         if variable_freq:
-            sinusoid_y =  variable_oscillations(2*width,T_min,T_max,20)
+            sinusoid_y =  variable_oscillations(2*width,20)
         else:
-            period = sample_period(T_min,T_max,1)
+            period = sample_period(1)
             sinusoid_y = np.sin(((2*np.pi)/period[0])*np.arange(0,2*width))
         sinusoid_y = np.tile(sinusoid_y,(2*width,1)).T
         sinusoid_y = rotate_CV(sinusoid_y,angle1)
+        # sinusoid_y = rotate_CV(np.tile(sinusoid_y,(2*width,1)),angle)
+        sinusoid_y = 0.5+ 0.5*sinusoid_y
+        sinusoid_y[sinusoid_y>thresh[1]] = 1
+        sinusoid_y = sigmoid(sinusoid_y,lamda[1])
+        sinusoid_y = (sinusoid_y-sigmoid(np.array([0]),lamda[1]))/(sigmoid(np.array([1]),lamda[1])-sigmoid(np.array([0]),lamda[1]))
         sinusoid  = sinusoid*sinusoid_y
-
-
     #ad hoc ok
-    lamda = np.random.uniform(1,10)
-    sinusoid = sigmoid(sinusoid,lamda)
-    sinusoid = (sinusoid-sigmoid(np.array([0]),lamda))/(sigmoid(np.array([1]),lamda)-sigmoid(np.array([0]),lamda))
+    # lamda = np.random.uniform(1,10)
+    # sinusoid = sigmoid(sinusoid,lamda)
+    # sinusoid = (sinusoid-sigmoid(np.array([0]),lamda))/(sigmoid(np.array([1]),lamda)-sigmoid(np.array([0]),lamda))
 
-    sinusoid = 0.5+ 0.5*sinusoid
+    # sinusoid = 0.5+ 0.5*sinusoid
+    
+    # ## threshold to obtain non regular patterns
+    # thresh = np.random.uniform(0.1,0.9)
+    # thresh = 0.1
+    # sinusoid[sinusoid>thresh] = 1
     sinusoid = normalize(rotate_CV(sinusoid,angle2)[width//2:-width//2,width//2:-width//2])
 
     return(sinusoid)

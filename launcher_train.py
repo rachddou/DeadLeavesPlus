@@ -9,6 +9,7 @@ if __name__ == "__main__":
     #Training parameters
     parser.add_argument("--batch_size","--bs"   , type=int      , default=256   , help="Training batch size")
     parser.add_argument("--epochs", "--e"       , type=int      , default=80    , help="Number of total training epochs")
+    parser.add_argument("--gradient_steps_per_epoch"       , type=int      , default=10000    , help="Number of total training epochs")
     parser.add_argument("--val_noiseL"          , type=float    , default=25    , help='noise level used on validation set')
     parser.add_argument("--lr"                  , type=float    , default=1e-3  , help="Initial learning rate")
 

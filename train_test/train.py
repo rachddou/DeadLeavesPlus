@@ -346,9 +346,10 @@ def train_drunet(args):
         
         loader_train = DataLoader(dataset=dataset_train,sampler = rdm_sampler, num_workers=20, \
             batch_size=16)
-        
+
+        gradient_steps_per_epoch = args.gradient_steps_per_epoch
         for i, data in enumerate(loader_train, 0):
-            if i>= 100000 :
+            if i>= gradient_steps_per_epoch:
                 break
             # Pre-training step
             model.train()
