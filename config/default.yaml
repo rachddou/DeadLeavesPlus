@@ -1,11 +1,7 @@
 defaults:
   - override hydra/launcher: joblib
 shape:
-<<<<<<< HEAD
-  rmin : 1
-=======
-  rmin : 50
->>>>>>> dc603943f6c51e257220d61de25cd7c72c7da7f8
+  rmin : 20
   rmax : 500
   alpha: 3.0
   shape_type : "rectangle"
@@ -16,32 +12,27 @@ task: 1
 texture:
   texture: True
   texture_types: ["sin","freq_noise","texture_mixes"]
-  texture_type_frequency: [0.25,0.75,0] # has to sum to 1
+  texture_type_frequency: [0.3,0.4,0.3] # has to sum to 1
   slope_range: [[0.5, 1.],[2,2.5]]
   texture_gen: True
-  warp: True
+  warp: False
   rdm_phase: False
   texture_path: ""
   perspective: True
 
 color:
   natural: True
-  color_path: "/Users/raphael/Workspace/telecom/code/exploration_database_and_code/pristine_images/"
+  color_path: "/scratch/Raphael/data/pristine_images/"
   grey: False
   partial_images: False
 
 io:
   path_origin: "datasets/"
-<<<<<<< HEAD
-  path: "dl/"
-=======
-  path: "vibrant_leaves_test/"
->>>>>>> dc603943f6c51e257220d61de25cd7c72c7da7f8
-
+  path: "vibrant_leaves_no_warp_perspective/"
 post_process:
   downscaling: True
-  dof: False
-  blur_type: "None"
+  dof: True
+  blur_type: "lens"
   blur: False
 
 number : 50
