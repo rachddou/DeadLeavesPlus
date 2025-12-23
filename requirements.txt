@@ -10,3 +10,4 @@ blurgenerator
 torchmetrics
 torch-fidelity
 tensorboardX
+matplotlib
