@@ -1,22 +1,21 @@
 defaults:
   - override hydra/launcher: joblib
 shape:
-  rmin : 15
+  rmin : 10
   rmax : 500
   alpha: 3.0
   shape_type : "poly"
-  multiple_shapes : False
+  multiple_shapes : True
 
 task: 1
 
 texture:
   texture: True
   texture_types: ["sin","freq_noise","texture_mixes"]
-  texture_type_frequency: [1,0.,0] # has to sum to 1
-
-  slope_range: [[0.5, 1.],[2,2.5]]
+  texture_type_frequency: [0.16,0.67,0.17] # has to sum to 1
+  slope_range: [[0.5,2.5]]
   texture_gen: True
-  warp: False
+  warp: True
   rdm_phase: False
   texture_path: ""
   perspective: True
@@ -29,15 +28,15 @@ color:
 
 io:
   path_origin: "datasets/"
-  path: "vibrant_leaves_sinusoids/"
+  path: "vibrant_leaves/"
 
 post_process:
   downscaling: False
-  dof: False
-  blur_type: "None"
+  dof: True
+  blur_type: "gaussian"
   blur: False
 
-number : 50
+number : 10
 size : 512
 image_type : "dead_leaves" 
 test: False
