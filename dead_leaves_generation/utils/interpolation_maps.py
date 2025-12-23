@@ -32,7 +32,8 @@ def sample_grid(width = 100,period = [100],angle = 45):
 
 @njit
 def sample_period(n_period):
-    periods = np.floor(TMIN + (TMAX-TMIN)*np.random.power(1/2.5, size=n_period))
+    # periods = np.floor(TMIN + (TMAX-TMIN)*np.random.power(1/2.5, size=n_period))
+    periods = np.floor(TMIN + (TMAX-TMIN)*np.random.random(size=n_period))
     return(periods)
 @njit
 def variable_oscillations(width,n_freq):
@@ -72,8 +73,6 @@ def sample_sinusoid(width = 100,angle = 45 ,angle1 = 45,angle2 = 45,variable_fre
         angle2 (int, optional): rotation applied to the whole sinusoidal field. Defaults to 45.
         variable_freq (bool, optional): Creates a sequence of single periods of random length. Defaults to False.
     """
-    T_min = TMIN
-    T_max = TMAX
     single_dim = np.random.random()>0.5
     thresh = np.random.uniform(0.05,1,2)
     lamda = np.random.uniform(1,10,2)
@@ -84,6 +83,7 @@ def sample_sinusoid(width = 100,angle = 45 ,angle1 = 45,angle2 = 45,variable_fre
         sinusoid = np.sin(((2*np.pi)/period[0])*np.arange(0,2*width))
         
     sinusoid = rotate_CV(np.tile(sinusoid,(2*width,1)),angle)
+    
     sinusoid = 0.5+ 0.5*sinusoid
     sinusoid[sinusoid>thresh[0]] = 1
     sinusoid = sigmoid(sinusoid,lamda[0])
@@ -98,23 +98,14 @@ def sample_sinusoid(width = 100,angle = 45 ,angle1 = 45,angle2 = 45,variable_fre
             sinusoid_y = np.sin(((2*np.pi)/period[0])*np.arange(0,2*width))
         sinusoid_y = np.tile(sinusoid_y,(2*width,1)).T
         sinusoid_y = rotate_CV(sinusoid_y,angle1)
-        # sinusoid_y = rotate_CV(np.tile(sinusoid_y,(2*width,1)),angle)
+        
         sinusoid_y = 0.5+ 0.5*sinusoid_y
         sinusoid_y[sinusoid_y>thresh[1]] = 1
         sinusoid_y = sigmoid(sinusoid_y,lamda[1])
         sinusoid_y = (sinusoid_y-sigmoid(np.array([0]),lamda[1]))/(sigmoid(np.array([1]),lamda[1])-sigmoid(np.array([0]),lamda[1]))
+        
         sinusoid  = sinusoid*sinusoid_y
-    #ad hoc ok
-    # lamda = np.random.uniform(1,10)
-    # sinusoid = sigmoid(sinusoid,lamda)
-    # sinusoid = (sinusoid-sigmoid(np.array([0]),lamda))/(sigmoid(np.array([1]),lamda)-sigmoid(np.array([0]),lamda))
 
-    # sinusoid = 0.5+ 0.5*sinusoid
-    
-    # ## threshold to obtain non regular patterns
-    # thresh = np.random.uniform(0.1,0.9)
-    # thresh = 0.1
-    # sinusoid[sinusoid>thresh] = 1
     sinusoid = normalize(rotate_CV(sinusoid,angle2)[width//2:-width//2,width//2:-width//2])
 
     return(sinusoid)
@@ -127,7 +118,9 @@ def sample_interpolation_map(mixing_types = ["sin"],width = 1000,thresh_val = 10
         angle2 = np.random.uniform(-22.5,22.5)
         #ad hoc proportion
         
-        sin = sample_sinusoid(width = width,angle = angle,angle1 = angle1,angle2 = angle2, variable_freq=(np.random.random()>0.5))
+        # sin = sample_sinusoid(width = width,angle = angle,angle1 = angle1,angle2 = angle2, variable_freq=(np.random.random()>0.5))
+        sin = sample_sinusoid(width = width,angle = angle,angle1 = angle1,angle2 = angle2, variable_freq=False)
+
         if warp:
             sin = np.clip(generate_perturbation(sin),0,1)
     else:
