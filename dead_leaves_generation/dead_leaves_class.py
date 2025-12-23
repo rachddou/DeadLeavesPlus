@@ -504,7 +504,7 @@ class Deadleaves(Textures):
         plainground,plain_mask = self.generate_stack(self.interval)
         self.clear()
 
-        foreground,fore_mask = self.generate_stack(int(0.5*self.interval))
+        foreground, fore_mask = self.generate_stack(int(0.5*self.interval))
 
         # adding the in focus plain ground to the out of focus background
         if blur_type == "gaussian":
@@ -525,8 +525,9 @@ class Deadleaves(Textures):
         
         im2 = plainground*(1-fore_mask)
         res=foreground*fore_mask
-        im2+=res
-        self.resulting_image = np.clip(im2,0,255)
+        # resulting_img = np.uint8(255*(im2 + res)**(1/2.2))
+        resulting_img = im2 + res
+        self.resulting_image = np.clip(resulting_img,0,255)
 
     def postprocess(self,blur=True,ds=True):
         """Post-processing applied to the resulting image.
