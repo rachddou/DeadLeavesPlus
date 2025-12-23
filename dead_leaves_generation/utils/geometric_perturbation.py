@@ -2,24 +2,7 @@ import numpy as np
 import cv2
 from numba import njit
  
-@njit
-def generate_triangular_pattern(shape,T):
-    tmp = shape/T
-    n_period = int(tmp)
-    start = 0
-    pattern = np.zeros(shape, dtype = np.float32)
-    for i in range(n_period):
-        for j in range(T//2):
-            if i*T+j == shape:
-                return(pattern)
-            else:
-                pattern[i*T+j] = 4*j/T -1.
-        for j in range(T//2):
-            if i*T+T//2 + j == shape:
-                return(pattern)
-            else:
-                pattern[i*T+T//2 + j] = 4*(T//2-j)/T -1.
-    return(pattern)
+
 
 def generate_vector_field(shape):
     """
@@ -112,3 +95,22 @@ def generate_perturbation(x):
 
     res[:,:] = bilinear_interpolate(x[:,:], u+xx, v+yy)+np.min(x)
     return(res)
+
+@njit
+def generate_triangular_pattern(shape,T):
+    tmp = shape/T
+    n_period = int(tmp)
+    start = 0
+    pattern = np.zeros(shape, dtype = np.float32)
+    for i in range(n_period):
+        for j in range(T//2):
+            if i*T+j == shape:
+                return(pattern)
+            else:
+                pattern[i*T+j] = 4*j/T -1.
+        for j in range(T//2):
+            if i*T+T//2 + j == shape:
+                return(pattern)
+            else:
+                pattern[i*T+T//2 + j] = 4*(T//2-j)/T -1.
+    return(pattern)

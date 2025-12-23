@@ -39,7 +39,7 @@ def sample_color_noise(image,width,slope):
     image = image[index]
     image = image.reshape((width,width,3)).astype(np.float32)
     magnitude = sample_magnitude(width,slope)
-
+    
     for c in range(3):
         x = image[...,c]
 
