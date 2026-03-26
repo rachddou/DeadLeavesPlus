@@ -1,5 +1,4 @@
 """GPU perspective shift using kornia."""
-import numpy as np
 import torch
 
 
@@ -16,7 +15,7 @@ def perspective_shift(image: torch.Tensor) -> torch.Tensor:
     size = image.shape[0]
     device = image.device
     alpha, beta = 2, int(size // 4)
-    mode = np.random.randint(0, 3)
+    mode = torch.randint(0, 3, ()).item()
 
     src = torch.tensor([
         [0.0, 0.0], [0.0, float(size)],

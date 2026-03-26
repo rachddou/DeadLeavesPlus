@@ -1,5 +1,4 @@
 """GPU-accelerated bilevel texture mixing in CIE-LAB space."""
-import numpy as np
 import torch
 
 from dead_leaves_generation_pytorch.utils.colored_noise import sample_color_noise_batch
@@ -12,10 +11,11 @@ def _sample_slope_from_ranges(slope_range) -> float:
         intervals = slope_range
         lengths = [iv[1] - iv[0] for iv in intervals]
         total = sum(lengths)
-        probs = [l / total for l in lengths]
-        idx = np.random.choice(len(intervals), p=probs)
-        return float(np.random.uniform(intervals[idx][0], intervals[idx][1]))
-    return float(np.random.uniform(slope_range[0], slope_range[1]))
+        probs = torch.tensor([l / total for l in lengths])
+        idx = torch.multinomial(probs, 1).item()
+        lo, hi = intervals[idx]
+        return float(lo + (hi - lo) * torch.rand(()).item())
+    return float(slope_range[0] + (slope_range[1] - slope_range[0]) * torch.rand(()).item())
 
 
 def bilevelTextureMixer_batch(
@@ -33,10 +33,11 @@ def bilevelTextureMixer_batch(
     """Mix two colour/texture sources for a batch of textures on GPU.
 
     Args:
-        color_sources_1: List of B source patches (numpy arrays h×w×3).
-        color_sources_2: List of B source patches.
-        single_color1: Use a single colour from source 1 (True) or generate
-            a coloured-noise map (False).
+        color_sources_1: List of B source patches. Each item can be a
+            (h, w, 3) numpy array or a (h, w, 3) uint8 GPU tensor.
+        color_sources_2: List of B source patches (same format).
+        single_color1: Use a single colour from source 1 (True) or a
+            coloured-noise map (False).
         single_color2: Same for source 2.
         mixing_types: Subset of ["sin", "grid", "noise"]. Defaults to ["sin"].
         width: Output texture size.
@@ -61,10 +62,17 @@ def bilevelTextureMixer_batch(
         if single:
             cols = []
             for src in sources:
-                r = np.random.randint(0, src.shape[0])
-                c = np.random.randint(0, src.shape[1])
-                cols.append(torch.from_numpy(src[r, c].astype(np.float32)).to(device))
-            return torch.stack(cols).view(B, 3, 1, 1).expand(B, 3, width, width).contiguous()
+                r = torch.randint(0, src.shape[0], ()).item()
+                c = torch.randint(0, src.shape[1], ()).item()
+                pixel = src[r, c]
+                if isinstance(pixel, torch.Tensor):
+                    cols.append(pixel.float().to(device))
+                else:
+                    import numpy as np
+                    cols.append(torch.from_numpy(
+                        pixel.astype('float32')).to(device))
+            return torch.stack(cols).view(B, 3, 1, 1).expand(
+                B, 3, width, width).contiguous()
         else:
             slopes = [_sample_slope_from_ranges(slope_range) for _ in range(B)]
             return sample_color_noise_batch(sources, width, slopes, device).float()
@@ -72,7 +80,7 @@ def bilevelTextureMixer_batch(
     tm1 = _pick_colors(color_sources_1, single_color1)  # (B, 3, W, W) float
     tm2 = _pick_colors(color_sources_2, single_color2)
 
-    # One interpolation map per batch item (each is different)
+    # One interpolation map per batch item (each is independently random)
     interp = torch.stack([
         sample_interpolation_map(mixing_types=mixing_types, width=width,
                                  thresh_val=thresh_val, warp=warp, device=device)

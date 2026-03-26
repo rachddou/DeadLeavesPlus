@@ -1,5 +1,4 @@
 """GPU smooth geometric warp via torch grid_sample."""
-import numpy as np
 import torch
 import torch.nn.functional as F
 
@@ -15,8 +14,8 @@ def generate_perturbation(x: torch.Tensor) -> torch.Tensor:
     """
     h, w = x.shape
     device = x.device
-    s = np.random.randint(10, 20)
-    t = np.random.randint(5, s // 2 + 1)
+    s = torch.randint(10, 20, ()).item()
+    t = torch.randint(5, s // 2 + 1, ()).item()
 
     u = torch.randn(1, 1, h, w, device=device)
     v = torch.randn(1, 1, h, w, device=device)

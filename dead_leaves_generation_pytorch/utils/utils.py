@@ -1,5 +1,6 @@
 """GPU utility functions: rotation, normalisation, colour space, gradients."""
-import numpy as np
+import math
+
 import torch
 import torch.nn.functional as F
 
@@ -14,8 +15,9 @@ def rotate_torch(image: torch.Tensor, angle_deg: float) -> torch.Tensor:
     elif image.dim() == 3:
         image = image.unsqueeze(0)
         squeeze_dims = [0]
-    angle_rad = angle_deg * np.pi / 180.0
-    cos_a, sin_a = np.cos(angle_rad), np.sin(angle_rad)
+    angle_rad = angle_deg * math.pi / 180.0
+    cos_a = math.cos(angle_rad)
+    sin_a = math.sin(angle_rad)
     rot = torch.tensor(
         [[[cos_a, -sin_a, 0.0], [sin_a, cos_a, 0.0]]],
         dtype=torch.float32, device=image.device

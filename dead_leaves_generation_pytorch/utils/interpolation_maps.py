@@ -1,5 +1,6 @@
 """GPU sinusoidal and grid interpolation maps for texture mixing."""
-import numpy as np
+import math
+
 import torch
 
 from dead_leaves_generation_pytorch.utils.utils import rotate_torch, normalize_torch, sigmoid_torch
@@ -29,7 +30,7 @@ def sample_grid(
         period = [100]
     if device is None:
         device = torch.device('cpu')
-    thickness = int(np.random.randint(1, 3))
+    thickness = torch.randint(1, 3, ()).item()
     two_w = 2 * width
 
     x = torch.ones(two_w, dtype=torch.float32, device=device)
@@ -50,23 +51,23 @@ def sample_grid(
 def _build_sinusoid_1d(two_w: int, variable_freq: bool, device: torch.device) -> torch.Tensor:
     """Build a 1-D sinusoidal signal of length two_w."""
     if variable_freq:
-        periods = np.floor(TMIN + (TMAX - TMIN) * np.random.random(20)).astype(int)
-        vec = np.zeros(two_w, dtype=np.float32)
+        raw = torch.rand(20) * (TMAX - TMIN) + TMIN
+        periods = raw.floor().int().tolist()
+        vec = torch.zeros(two_w, dtype=torch.float32)
         start, n = 0, 0
         while start < two_w:
             p = max(1, int(periods[n % len(periods)]))
             for j in range(p):
                 if start + j >= two_w:
                     break
-                vec[start + j] = np.sin(2.0 * np.pi * j / p)
+                vec[start + j] = math.sin(2.0 * math.pi * j / p)
             start += p
             n += 1
-        return torch.from_numpy(vec).to(device)
+        return vec.to(device)
     else:
-        period = int(np.floor(TMIN + (TMAX - TMIN) * np.random.random()))
-        period = max(1, period)
+        period = max(1, int(math.floor(TMIN + (TMAX - TMIN) * torch.rand(()).item())))
         t = torch.arange(two_w, dtype=torch.float32, device=device)
-        return torch.sin(2.0 * np.pi * t / period)
+        return torch.sin(2.0 * math.pi * t / period)
 
 
 def sample_sinusoid(
@@ -93,9 +94,11 @@ def sample_sinusoid(
     if device is None:
         device = torch.device('cpu')
     two_w = 2 * width
-    single_dim = np.random.random() > 0.5
-    thresh = np.random.uniform(0.05, 1.0, 2)
-    lamda = np.random.uniform(1.0, 10.0, 2)
+    single_dim = torch.rand(()).item() > 0.5
+    thresh = torch.rand(2).tolist()           # 2 uniform values in [0, 1]
+    thresh[0] = thresh[0] * 0.95 + 0.05      # remap to [0.05, 1.0]
+    thresh[1] = thresh[1] * 0.95 + 0.05
+    lamda = (torch.rand(2) * 9.0 + 1.0).tolist()  # [1.0, 10.0]
 
     sin1d = _build_sinusoid_1d(two_w, variable_freq, device)
     sin_2d = sin1d.unsqueeze(0).expand(two_w, -1)  # (2W, 2W)
@@ -152,9 +155,10 @@ def sample_interpolation_map(
     from dead_leaves_generation_pytorch.utils.geometric_perturbation import generate_perturbation
 
     if "sin" in mixing_types:
-        ang = np.random.uniform(-45, 45)
-        ang1 = ang + np.random.choice([-1, 1]) * np.random.uniform(15, 45)
-        ang2 = np.random.uniform(-22.5, 22.5)
+        ang = float(torch.empty(()).uniform_(-45, 45).item())
+        sign = 1 if torch.rand(()).item() > 0.5 else -1
+        ang1 = ang + sign * float(torch.empty(()).uniform_(15, 45).item())
+        ang2 = float(torch.empty(()).uniform_(-22.5, 22.5).item())
         sin = sample_sinusoid(width=width, angle=ang, angle1=ang1, angle2=ang2,
                               variable_freq=False, device=device)
         if warp:
@@ -163,10 +167,13 @@ def sample_interpolation_map(
         sin = torch.ones(width, width, dtype=torch.float32, device=device)
 
     if "grid" in mixing_types:
-        ang_g = float(np.random.uniform(-45, 45))
-        two_dim = np.random.random() > 0.3
-        periods = ([int(np.random.randint(20, 100)), int(np.random.randint(20, 100))]
-                   if two_dim else [int(np.random.randint(20, 100))])
+        ang_g = float(torch.empty(()).uniform_(-45, 45).item())
+        two_dim = torch.rand(()).item() > 0.3
+        if two_dim:
+            periods = [torch.randint(20, 100, ()).item(),
+                       torch.randint(20, 100, ()).item()]
+        else:
+            periods = [torch.randint(20, 100, ()).item()]
         grid = sample_grid(width=width, period=periods, angle=ang_g, device=device)
         if warp:
             grid = generate_perturbation(grid).clamp(0, 1)
@@ -175,8 +182,8 @@ def sample_interpolation_map(
 
     if "noise" in mixing_types:
         from dead_leaves_generation_pytorch.utils.colored_noise import sample_color_noise_batch
-        rnd = np.random.randint(0, 255, (width, width, 3), dtype=np.uint8)
-        slope_m = float(np.random.uniform(1.5, 3.0))
+        rnd = torch.randint(0, 255, (width, width, 3), dtype=torch.uint8, device=device)
+        slope_m = float(torch.empty(()).uniform_(1.5, 3.0).item())
         noise_batch = sample_color_noise_batch([rnd], width, [slope_m], device)
         noise_map = noise_batch[0].float().mean(dim=0)           # (W, W)
         lo_t = float(128 - thresh_val)

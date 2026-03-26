@@ -1,5 +1,4 @@
 """GPU-accelerated 1/f^slope coloured noise generation via PyTorch FFT."""
-import numpy as np
 import torch
 import torch.fft
 
@@ -40,7 +39,8 @@ def sample_color_noise_batch(
     to match the given 1/f^slope.
 
     Args:
-        patches: List of B numpy arrays (h x w x 3) source patches.
+        patches: List of B source patches. Each patch is either a
+            (h, w, 3) numpy array or a (h, w, 3) uint8 GPU tensor.
         width: Output texture size (square).
         slopes: List of B float slope values.
         device: Target device.
@@ -54,12 +54,18 @@ def sample_color_noise_batch(
 
     for b, patch in enumerate(patches):
         h, w = patch.shape[:2]
-        xx = np.random.randint(0, max(1, h - p))
-        yy = np.random.randint(0, max(1, w - p))
-        sub = patch[xx:xx + p, yy:yy + p].reshape(p * p, 3).astype(np.float32)
-        idx = np.random.choice(p * p, size=width * width, replace=True)
-        colors = torch.from_numpy(sub[idx]).to(device)         # (W*W, 3)
-        images[b] = colors.T.reshape(3, width, width)
+        xx = torch.randint(0, max(1, h - p), ()).item()
+        yy = torch.randint(0, max(1, w - p), ()).item()
+
+        if isinstance(patch, torch.Tensor):
+            sub = patch[xx:xx + p, yy:yy + p].reshape(p * p, 3).float().to(device)
+            idx = torch.randint(0, p * p, (width * width,), device=device)
+            images[b] = sub[idx].T.reshape(3, width, width)
+        else:
+            import numpy as np
+            sub = patch[xx:xx + p, yy:yy + p].reshape(p * p, 3).astype('float32')
+            idx = torch.randint(0, p * p, (width * width,)).numpy().astype('int64')
+            images[b] = torch.from_numpy(sub[idx]).to(device).T.reshape(3, width, width)
 
     slopes_t = torch.tensor(slopes, dtype=torch.float32, device=device)
     magnitude = _sample_magnitude_batch(width, slopes_t)       # (B,3,W,W)
