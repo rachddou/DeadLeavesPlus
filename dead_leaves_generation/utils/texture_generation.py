@@ -1,131 +1,140 @@
 import numpy as np
-from omegaconf import OmegaConf 
 from skimage.color import rgb2lab, lab2rgb
-from dead_leaves_generation.utils.interpolation_maps import sample_grid,  sample_sinusoid,sample_interpolation_map
+from dead_leaves_generation.utils.interpolation_maps import sample_grid, sample_sinusoid, sample_interpolation_map
 from dead_leaves_generation.utils.geometric_perturbation import generate_perturbation
-
 from dead_leaves_generation.utils.colored_noise import sample_color_noise
 
 
 def _sample_slope_from_ranges(slope_range):
-    """
-    Échantillonne uniformément une valeur de slope à partir d'une union d'intervalles disjoints.
-    
+    """Samples a slope value uniformly from a union of disjoint intervals.
+
     Args:
-        slope_range: soit [a,b] pour un seul intervalle, soit [[a1,b1], [a2,b2], ...] pour plusieurs intervalles
-        
+        slope_range: Either [a, b] for a single interval, or [[a1,b1], [a2,b2], ...]
+            for multiple disjoint intervals. Sampling probability is proportional to
+            each interval's length.
+
     Returns:
-        float: La valeur de slope échantillonnée
+        float: The sampled slope value.
     """
-    if isinstance(OmegaConf.to_object(slope_range[0]), (list, tuple)):
+    if not isinstance(slope_range[0], (int, float)):
         # Multiple intervals: [[a1,b1], [a2,b2], ...]
         intervals = slope_range
-        # Calculer les longueurs des intervalles
         lengths = [interval[1] - interval[0] for interval in intervals]
         total_length = sum(lengths)
-        
-        # Choisir un intervalle selon sa longueur relative
         interval_probs = [length / total_length for length in lengths]
         chosen_interval = np.random.choice(len(intervals), p=interval_probs)
-        
-        # Échantillonner uniformément dans l'intervalle choisi
         interval = intervals[chosen_interval]
-        slope = np.random.uniform(interval[0], interval[1])
-        return slope
+        return np.random.uniform(interval[0], interval[1])
     else:
         # Single interval: [a, b]
-        slope = np.random.uniform(slope_range[0], slope_range[1])
-        return slope
+        return np.random.uniform(slope_range[0], slope_range[1])
 
 
-## a bilevel texture function that mixes either two colors or two micro-texture maps
-def bilevelTextureMixer(color_source_1 = np.random.randint(0,255,(100,100,3)),color_source_2 = np.random.randint(0,255,(100,100,3)),single_color1 = True,single_color2 = True,mixing_types = ["sin"],width = 1000,thresh_val = 10,warp = True, slope_range = [0.5,2.5]):
-    """function that mixes two color/texture maps with either a sinusoidal pattern, a grid pattern or a noise pattern.
+def bilevelTextureMixer(color_source_1=None, color_source_2=None,
+                        single_color1=True, single_color2=True,
+                        mixing_types=None, width=1000, thresh_val=10,
+                        warp=True, slope_range=None):
+    """Mixes two color/texture sources with a sinusoidal, grid, or noise pattern.
 
     Args:
-        color_source_1 (_type_, optional): source color image 1. Defaults to np.random.randint(0,255,(100,100,3)).
-        color_source_2 (_type_, optional): source color image 2. Defaults to np.random.randint(0,255,(100,100,3)).
-        single_color1 (bool, optional): whether texture 1 is a single color or a colored noise map. Defaults to True.
-        single_color2 (bool, optional): whether texture 2 is a single color or a colored noise map. Defaults to True.
-        mixing_types (list, optional): interpolation methods between two textures. Defaults to ["sin"].
-        width (int, optional): size of the final texture image. Defaults to 1000.
-        thresh_val (int, optional): specific to noise mixing, the thresholding parameter for binary masking. Defaults to 10.
-        warp (bool, optional): whether or not to apply warping for the sinusoidal interpolation maps. Defaults to True.
+        color_source_1 (np.ndarray, optional): Source color image 1 (H x W x 3).
+            Defaults to random noise if None.
+        color_source_2 (np.ndarray, optional): Source color image 2 (H x W x 3).
+            Defaults to random noise if None.
+        single_color1 (bool): Whether texture 1 is a single color (True) or a
+            colored noise map (False). Defaults to True.
+        single_color2 (bool): Whether texture 2 is a single color (True) or a
+            colored noise map (False). Defaults to True.
+        mixing_types (list, optional): Interpolation methods; subset of
+            ["sin", "grid", "noise"]. Defaults to ["sin"].
+        width (int): Output texture size. Defaults to 1000.
+        thresh_val (int): Threshold half-width for noise-based binarisation.
+            Defaults to 10.
+        warp (bool): Whether to apply geometric warping to the interpolation map.
+            Defaults to True.
+        slope_range: Frequency slope range for colored noise generation.
+            Either [a, b] or [[a1,b1], [a2,b2], ...]. Defaults to [0.5, 2.5].
     """
+    if color_source_1 is None:
+        color_source_1 = np.random.randint(0, 255, (100, 100, 3))
+    if color_source_2 is None:
+        color_source_2 = np.random.randint(0, 255, (100, 100, 3))
+    if mixing_types is None:
+        mixing_types = ["sin"]
+    if slope_range is None:
+        slope_range = [0.5, 2.5]
+
     if single_color1:
-        texture_map_1 = color_source_1[np.random.randint(0,color_source_1.shape[0],1),np.random.randint(0,color_source_1.shape[1],1),:].reshape((1,1,3))
-
+        texture_map_1 = color_source_1[
+            np.random.randint(0, color_source_1.shape[0], 1),
+            np.random.randint(0, color_source_1.shape[1], 1), :
+        ].reshape((1, 1, 3))
     else:
-        # slope1 = np.random.uniform(slope_range[0],slope_range[1])
         slope1 = _sample_slope_from_ranges(slope_range)
-        texture_map_1 = sample_color_noise(color_source_1,width,slope1)
+        texture_map_1 = sample_color_noise(color_source_1, width, slope1)
+
     if single_color2:
-        texture_map_2 = color_source_2[np.random.randint(0,color_source_2.shape[0],1),np.random.randint(0,color_source_2.shape[1],1),:].reshape((1,1,3))
-
+        texture_map_2 = color_source_2[
+            np.random.randint(0, color_source_2.shape[0], 1),
+            np.random.randint(0, color_source_2.shape[1], 1), :
+        ].reshape((1, 1, 3))
     else:
-        #ad hoc ok
         slope2 = _sample_slope_from_ranges(slope_range)
-        texture_map_2 =sample_color_noise(color_source_2,width,slope2)
+        texture_map_2 = sample_color_noise(color_source_2, width, slope2)
 
-    interpolation_map = sample_interpolation_map(mixing_types = mixing_types,width = width,thresh_val = thresh_val,warp = warp)
-    texture_map_1 = texture_map_1/255.
-    texture_map_2 = texture_map_2/255.
-    texture_transform_1 = rgb2lab(texture_map_1)
-    texture_transform_2 = rgb2lab(texture_map_2)
-    r = interpolation_map*(texture_transform_2[...,0]-texture_transform_1[...,0])+texture_transform_1[...,0]
-    g = interpolation_map*(texture_transform_2[...,1]-texture_transform_1[...,1])+texture_transform_1[...,1]
-    b = interpolation_map*(texture_transform_2[...,2]-texture_transform_1[...,2])+texture_transform_1[...,2]
+    interpolation_map = sample_interpolation_map(
+        mixing_types=mixing_types, width=width, thresh_val=thresh_val, warp=warp)
 
-    res_image = np.stack([r,g,b],axis = -1)
+    texture_map_1 = texture_map_1 / 255.
+    texture_map_2 = texture_map_2 / 255.
+    t1 = rgb2lab(texture_map_1)
+    t2 = rgb2lab(texture_map_2)
 
-    res_image = lab2rgb(res_image)
+    r = interpolation_map * (t2[..., 0] - t1[..., 0]) + t1[..., 0]
+    g = interpolation_map * (t2[..., 1] - t1[..., 1]) + t1[..., 1]
+    b = interpolation_map * (t2[..., 2] - t1[..., 2]) + t1[..., 2]
 
-    res_image = np.uint8(res_image*255)
-    return(res_image)
+    res_image = lab2rgb(np.stack([r, g, b], axis=-1))
+    return np.uint8(res_image * 255)
 
 
-def pattern_patch_two_colors(color_1,color_2,width=100,period=[100],thickness = 3, angle=45,warp = False,type = "sin"):
-    """function that mixes two color maps with a sinusoidal pattern.
+def pattern_patch_two_colors(color_1, color_2, width=100, period=None,
+                              angle=45, warp=False, type="sin"):
+    """Mixes two colors with a sinusoidal or grid interpolation pattern.
 
     Args:
-        color_1 (_type_): either an image or a single RGB color
-        color_2 (_type_): either an image or a single RGB color
-        width (int, optional): image width. Defaults to 100.
-        period (list, optional): period of the oscillations. Defaults to [100].
-        thickness (int, optional): thickness of the grid. Defaults to 3.
-        angle (int, optional): rotation angle. Defaults to 45.
-        warp (bool, optional): Whether or not apply athmospheric perturbation. Defaults to False.
-        type (str, optional): define the type of interpolation map. Defaults to "sin".
+        color_1: Either an image or a single RGB color.
+        color_2: Either an image or a single RGB color.
+        width (int): Output image width. Defaults to 100.
+        period (list, optional): Period(s) of the pattern oscillations.
+            Defaults to [100].
+        angle (int): Rotation angle in degrees. Defaults to 45.
+        warp (bool): Whether to apply atmospheric perturbation. Defaults to False.
+        type (str): Interpolation map type ("sin" or "grid"). Defaults to "sin".
+            Note: grid line thickness is sampled randomly by sample_grid.
     """
-    
-    res_image = np.zeros((width,width))
+    if period is None:
+        period = [100]
 
-    color_1 = color_1/255.
-    color_2 = color_2/255.
-    texture_transform_1 = rgb2lab(color_1)
-    texture_transform_2 = rgb2lab(color_2)
-    
-    pattern = np.zeros((width,width))
+    color_1 = color_1 / 255.
+    color_2 = color_2 / 255.
+    t1 = rgb2lab(color_1)
+    t2 = rgb2lab(color_2)
 
     if type == "sin":
-        # pattern = sample_sinusoid(width = width,angle = angle,variable_freq=False)
-        pattern = sample_sinusoid(width = width,angle = angle,variable_freq=(np.random.random()>0.5))
+        pattern = sample_sinusoid(width=width, angle=angle,
+                                  variable_freq=(np.random.random() > 0.5))
     elif type == "grid":
-        pattern = sample_grid(width = width,period = period,angle = angle ,thickness = thickness)
+        pattern = sample_grid(width=width, period=period, angle=angle)
+    else:
+        pattern = np.zeros((width, width))
 
+    if warp:
+        pattern = np.clip(generate_perturbation(pattern), 0, 1)
 
-    if warp:        
-        pattern = np.clip(generate_perturbation(pattern),0,1)  
+    r = pattern * (t2[..., 0] - t1[..., 0]) + t1[..., 0]
+    g = pattern * (t2[..., 1] - t1[..., 1]) + t1[..., 1]
+    b = pattern * (t2[..., 2] - t1[..., 2]) + t1[..., 2]
 
-
-    r = pattern*(texture_transform_2[...,0]-texture_transform_1[...,0])+texture_transform_1[...,0]
-    g = pattern*(texture_transform_2[...,1]-texture_transform_1[...,1])+texture_transform_1[...,1]
-    b = pattern*(texture_transform_2[...,2]-texture_transform_1[...,2])+texture_transform_1[...,2]
-
-    res_image = np.stack([r,g,b],axis = -1)
-
-    res_image = lab2rgb(res_image)
-
-    res_image = np.uint8(res_image*255)
-
-    return(res_image)
+    res_image = lab2rgb(np.stack([r, g, b], axis=-1))
+    return np.uint8(res_image * 255)

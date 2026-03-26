@@ -1,29 +1,33 @@
 defaults:
   - override hydra/launcher: joblib
+
 shape:
-  rmin : 10
-  rmax : 500
-  alpha: 3.0
-  shape_type : "poly"
-  multiple_shapes : True
+  radius_min: 10           # minimum shape radius in pixels (power-law distributed)
+  radius_max: 500          # maximum shape radius in pixels
+  power_law_exponent: 3.0  # controls size distribution; higher = more small shapes
+  shape_type: "poly"       # "poly" | "disk" | "rectangle" | "mix"
+  multiple_shapes: True    # randomly switch between "poly" and "mix" each image
 
 task: 1
 
 texture:
-  texture: True
-  texture_types: ["sin","freq_noise","texture_mixes"]
-  texture_type_frequency: [0.16,0.67,0.17] # has to sum to 1
-  slope_range: [[0.5,2.5]]
-  texture_gen: True
-  warp: True
-  rdm_phase: False
-  texture_path: ""
-  perspective: True
+  enabled: True
+  types: ["sin", "freq_noise", "texture_mixes"]
+  type_weights: [0.16, 0.67, 0.17]  # sampling probabilities, must sum to 1
+  slope_range: [[0.5, 2.5]]         # 1/f^s frequency slope; supports disjoint
+                                    # intervals e.g. [[0.5, 1.1], [1.75, 2.4]]
+  online_generation: True           # True = generate per shape on-the-fly;
+                                    # False = precompute a texture dictionary
+  apply_warp: True                  # apply geometric warp to interpolation maps
+  random_phase: False               # randomise FFT phase when generating textures
+  texture_path: ""                  # if non-empty, load textures from this dir
+  apply_perspective: True           # apply random perspective shift to textures
 
 color:
-  natural: True
-  color_path: "/scratch/Raphael/data/pristine_images/"
-  grey: False
+  use_natural_images: True          # sample colours from real images
+  image_dir: ""                     # path to source images (required when
+                                    # use_natural_images is True)
+  grey: False                       # save images as greyscale
   partial_images: False
 
 io:
@@ -31,12 +35,12 @@ io:
   path: "vibrant_leaves/"
 
 post_process:
-  downscaling: False
-  dof: True
-  blur_type: "gaussian"
-  blur: False
+  depth_of_field: True              # composite background/plain/foreground layers
+  blur_type: "gaussian"             # "gaussian" | "lens"
+  extra_blur: False                 # additional Gaussian blur after DoF compositing
+  downscale: False                  # 2x downsample the final image
 
-number : 10
-size : 512
-image_type : "dead_leaves" 
+n_images: 10
+image_size: 512
+image_type: "dead_leaves"          # "dead_leaves" | "textures"
 test: False

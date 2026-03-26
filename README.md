@@ -38,47 +38,50 @@ This function will generate and store images in the `dataset/vibrantLeaves/` fol
 
 This file is organized as follows:
 
-```
+```yaml
 defaults:
   - override hydra/launcher: joblib
+
 shape: ## geometry parameters
-  rmin : 20
-  rmax : 1000
-  alpha: 3.0
-  shape_type : "poly"
-  multiple_shapes : True
+  radius_min: 10           # minimum shape radius in pixels
+  radius_max: 500          # maximum shape radius in pixels
+  power_law_exponent: 3.0  # controls size distribution; higher = more small shapes
+  shape_type: "poly"       # "poly" | "disk" | "rectangle" | "mix"
+  multiple_shapes: True    # randomly switch between "poly" and "mix" each image
 
 task: 1
 
 texture: ## texture parameters
-  texture: True
-  texture_types: ["sin","freq_noise","texture_mixes"]
-  texture_type_frequency:[0.17,0.67,0.16] #must sum to 1
-  texture_gen: True
-  warp: True
-  rdm_phase: False
+  enabled: True
+  types: ["sin", "freq_noise", "texture_mixes"]
+  type_weights: [0.16, 0.67, 0.17]  # sampling probabilities, must sum to 1
+  slope_range: [[0.5, 2.5]]         # 1/f^s frequency slope; supports disjoint
+                                    # intervals e.g. [[0.5, 1.1], [1.75, 2.4]]
+  online_generation: True           # True = generate per shape; False = precompute dict
+  apply_warp: True
+  random_phase: False
   texture_path: ""
-  perspective: True
+  apply_perspective: True
 
 color: ## color parameters
-  natural: True
-  color_path: "path/to/waterlooDB/"
+  use_natural_images: True
+  image_dir: "path/to/waterlooDB/"  # path to source images
   grey: False
   partial_images: False
 
 io: ## saving parameters
   path_origin: "datasets/"
-  path: "vibrantLeaves/"
+  path: "vibrant_leaves/"
 
-post_process: ## depth-of-field and other postprocessing functions
-  downscaling: True
-  dof: True
-  blur_type: "gaussian"
-  blur: False
+post_process: ## depth-of-field and other post-processing
+  depth_of_field: True
+  blur_type: "gaussian"             # "gaussian" | "lens"
+  extra_blur: False
+  downscale: False
 
-number : 10
-size : 1000
-image_type : "dead_leaves" 
+n_images: 10
+image_size: 512
+image_type: "dead_leaves"          # "dead_leaves" | "textures"
 test: False
 ```
 
