@@ -19,6 +19,7 @@ import cv2
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
+import lpips
 from utils.models import FFDNet, UNetRes
 from skimage.transform import pyramid_reduce,rotate
 
@@ -64,7 +65,9 @@ def test_ffdnet_dataset(**args):
     PieAPP_test_set = 0
     PieAPP_test_set_n = 0
     acutance_test_set = 0
+    lpips_test_set = 0
     noise_test = True
+    lpips_fn = lpips.LPIPS(net='alex').cuda() if args['cuda'] else lpips.LPIPS(net='alex')
     # Absolute path to model file
     model_fn = os.path.join(os.path.abspath(os.path.dirname(__file__)), \
                 model_fn)
@@ -236,9 +239,17 @@ def test_ffdnet_dataset(**args):
         else:
             mse = np.mean((image0-image1)**2)
         psnr = 10*np.log10((255**2)/mse)
-            
+
+        # LPIPS expects (N,C,H,W) tensors in [-1, 1]
+        def to_lpips_tensor(img_uint8):
+            t = torch.from_numpy(img_uint8.transpose(2, 0, 1)).unsqueeze(0).float() / 127.5 - 1.0
+            return t.cuda() if args['cuda'] else t
+        lpips_val = lpips_fn(to_lpips_tensor(outimg), to_lpips_tensor(img_orig)).item()
+        lpips_test_set += lpips_val
+
         print(psnr)
         print(psnr_noisy)
+        print("LPIPS: {:.4f}".format(lpips_val))
         psnr_test_set+= psnr
         psnr_test_set_noisy+= psnr_noisy
             
@@ -267,9 +278,11 @@ def test_ffdnet_dataset(**args):
     psnr_test_set*= (1./len(im_files))
     psnr_test_set_noisy*= (1./len(im_files))
     ssim_test_set*= (1./len(im_files))
+    lpips_test_set *= (1./len(im_files))
     print("SSIM : {}".format(ssim_test_set))
     print("PSNR : {}".format(psnr_test_set))
     print("PSNR Noisy : {}".format(psnr_test_set_noisy))
+    print("LPIPS : {:.4f}".format(lpips_test_set))
 
 
 
