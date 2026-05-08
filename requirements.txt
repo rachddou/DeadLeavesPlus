@@ -11,3 +11,4 @@ torchmetrics
 torch-fidelity
 tensorboardX
 matplotlib
+lpips
