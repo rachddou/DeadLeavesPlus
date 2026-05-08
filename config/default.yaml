@@ -40,7 +40,7 @@ post_process:
   extra_blur: False                 # additional Gaussian blur after DoF compositing
   downscale: False                  # 2x downsample the final image
 
-n_images: 10
+n_images: 200
 image_size: 512
 image_type: "dead_leaves"          # "dead_leaves" | "textures"
 test: False

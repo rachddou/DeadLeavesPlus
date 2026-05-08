@@ -27,7 +27,7 @@ def main(config):
     out_dir = os.path.join(config.io.path_origin, config.io.path)
     os.makedirs(out_dir, exist_ok=True)
 
-    batch_size = int(getattr(config, "batch_size", 4))
+    batch_size = int(getattr(config, "batch_size", 20))
     device_str = str(getattr(config, "device", ""))
     if device_str:
         device = torch.device(device_str)
