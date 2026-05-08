@@ -3,7 +3,7 @@ torcheval
 numba
 hydra-core
 hydra-joblib-launcher 
-numpy==1.24.1
+numpy
 shapely
 rasterio
 blurgenerator
