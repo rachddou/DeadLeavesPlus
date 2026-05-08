@@ -1,4 +1,4 @@
-from train_test.dataset_test import test_ffdnet_dataset
+from train_test.dataset_test import test_dataset
 import torch
 import argparse
 
@@ -7,7 +7,9 @@ if __name__ == "__main__":
     # Parse arguments
     parser = argparse.ArgumentParser(description="FFDNet_Test")
     parser.add_argument('--add_noise'       , type=str  , default="True")
-    parser.add_argument("--input"           , type=str  , default="datasets/test_sets/Kodak24/",help='path to input dataset')
+    parser.add_argument("--input"           , type=str  , default="datasets/test_sets/Kodak24/", help='path to a single input dataset (legacy)')
+    parser.add_argument("--inputs"          , type=str  , nargs='+', default=None, help='list of dataset paths to evaluate')
+    parser.add_argument("--noise_sigmas"    , type=float, nargs='+', default=None, help='list of noise levels (0-255 scale)')
     parser.add_argument("--suffix"          , type=str  , default="", help='suffix to add to output name')
     parser.add_argument("--noise_map"       , type=str  , default = "single", help=" noise map mode")
     parser.add_argument("--save_dir"        , type=str  , default = "dl_denoising/", help=" noise map mode") 
@@ -33,8 +35,10 @@ if __name__ == "__main__":
     parser.add_argument("--grey_color"      , action='store_true', help="true if we want to denoise each canal with the grey level trained model")
     parser.add_argument("--contrast_reduction", action='store_true', help="true if you want to reduce contrast of input images")
     argspar = parser.parse_args()
-    # Normalize noises ot [0, 1]
+    # Normalize noise levels to [0, 1]
     argspar.noise_sigma /= 255.
+    if argspar.noise_sigmas is not None:
+        argspar.noise_sigmas = [s / 255. for s in argspar.noise_sigmas]
 
     # String to bool
     argspar.add_noise = (argspar.add_noise.lower() == 'true')
@@ -42,9 +46,9 @@ if __name__ == "__main__":
     # use CUDA?
     argspar.cuda = not argspar.no_gpu and torch.cuda.is_available()
     print(torch.cuda.is_available())
-    print("\n### Testing FFDNet model ###")
+    print("\n### Testing denoising model ###")
     print("> Parameters:")
     for p, v in zip(argspar.__dict__.keys(), argspar.__dict__.values()):
         print('\t{}: {}'.format(p, v))
     print('\n')
-    test_ffdnet_dataset(**vars(argspar))
+    test_dataset(argspar)
