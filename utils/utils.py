@@ -190,7 +190,7 @@ def init_logger(argdict):
 
     return logger
 
-def init_logger_ipol():
+def init_logger_ipol(path):
     r"""Initializes a logging.Logger in order to log the results after
     testing a model
 
@@ -199,7 +199,7 @@ def init_logger_ipol():
     """
     logger = logging.getLogger('testlog')
     logger.setLevel(level=logging.INFO)
-    fh = logging.FileHandler('out.txt', mode='w')
+    fh = logging.FileHandler('{}.txt'.format(path), mode='w')
     formatter = logging.Formatter('%(message)s')
     fh.setFormatter(formatter)
     logger.addHandler(fh)

@@ -25,7 +25,7 @@ class DatasetTester:
     def __init__(self, args):
         torch.manual_seed(0)
         self.args = args
-        self.logger = init_logger_ipol()
+        self.logger = init_logger_ipol(args.model_path.split('/')[-1].split('.')[0])
         self.dtype = torch.cuda.FloatTensor if args.cuda else torch.FloatTensor
         self.lpips_fn = (lpips.LPIPS(net='alex').cuda()
                          if args.cuda else lpips.LPIPS(net='alex'))
@@ -83,7 +83,7 @@ class DatasetTester:
         image = normalize(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
         if self.args.scale_invariance:
             image = pyramid_reduce(image, 4.5, channel_axis=2)
-        return image[:1000, :1000, :]
+        return image[:800, :800, :]
 
     # ------------------------------------------------------------------ #
     # Distortions                                                          #
