@@ -17,7 +17,8 @@ from utils.utils import (batch_ssim, normalize, init_logger_ipol,
                          is_rgb, compute_noise_map, rgb_2_grey_tensor)
 
 try:
-    from deepinv.datasets import SimpleFastMRISliceDataset, FastMRISliceDataset
+    import h5py
+    from deepinv.datasets import SimpleFastMRISliceDataset
     from deepinv.utils import get_data_home
     _DEEPINV_AVAILABLE = True
 except ImportError:
@@ -106,9 +107,10 @@ class DatasetTester:
     def _iter_fastmri(self):
         """Yield (image_stem, image_hwc) tuples from the FastMRI dataset.
 
-        Uses FastMRISliceDataset (full dataset) when fastmri_root points to
-        a directory of .h5 volumes, otherwise falls back to the built-in
-        2-image demo via SimpleFastMRISliceDataset.
+        When fastmri_root points to a directory of .h5 volumes, reads them
+        directly (avoids deepinv's FastMRISliceDataset which fails on
+        training/validation files that have no 'mask' key).
+        Falls back to the built-in 2-image demo otherwise.
         """
         if not _DEEPINV_AVAILABLE:
             raise ImportError(
@@ -119,19 +121,8 @@ class DatasetTester:
         root = args.fastmri_root if args.fastmri_root else None
 
         if root is not None and os.path.isdir(root):
-            # Full FastMRISliceDataset: root contains .h5 volume files
-            fastmri_dataset = FastMRISliceDataset(
-                root=root,
-                slice_index=args.fastmri_slice_index,
-            )
-            for i, (x, y, _) in enumerate(fastmri_dataset):
-                # x is the magnitude RSS reconstruction (1, H, W)
-                image = x[0].numpy()                          # HxW
-                image = (image - image.min()) / (image.max() - image.min() + 1e-8)
-                image_hwc = np.stack([image, image, image], axis=2).astype(np.float32)
-                yield f'fastmri_{args.fastmri_anatomy}_{i:04d}', image_hwc
+            yield from self._iter_fastmri_h5_dir(root, args.fastmri_slice_index)
         else:
-            # Demo subset: 2 slices, no sign-up required
             demo_root = get_data_home() if root is None else root
             fastmri_dataset = SimpleFastMRISliceDataset(
                 root_dir=demo_root,
@@ -141,6 +132,57 @@ class DatasetTester:
             )
             for i, slice_tensor in enumerate(fastmri_dataset):
                 yield f'fastmri_{args.fastmri_anatomy}_{i:04d}', self._load_fastmri_slice(slice_tensor)
+
+    def _iter_fastmri_h5_dir(self, root, slice_index):
+        """Read .h5 FastMRI volume files directly, bypassing deepinv's dataset class.
+
+        Prefers the precomputed 'reconstruction_rss' array when present;
+        falls back to IFFT of the raw kspace.
+        """
+        import random as _random
+        h5_files = sorted(
+            os.path.join(root, f) for f in os.listdir(root) if f.endswith('.h5')
+        )
+        if not h5_files:
+            raise RuntimeError(f'No .h5 files found in {root}')
+        print(f'Found {len(h5_files)} FastMRI volume(s) in {root}')
+
+        for h5_path in h5_files:
+            volume_stem = os.path.splitext(os.path.basename(h5_path))[0]
+            with h5py.File(h5_path, 'r') as hf:
+                if 'reconstruction_rss' in hf:
+                    volume = hf['reconstruction_rss'][()]        # (S, H, W) float32
+                else:
+                    kspace = hf['kspace'][()]                    # (S, [coils,] H, W)
+                    if kspace.ndim == 4:
+                        imgs = np.fft.ifft2(kspace, axes=(-2, -1))
+                        volume = np.sqrt((np.abs(imgs) ** 2).sum(axis=1))
+                    else:
+                        volume = np.abs(np.fft.ifft2(kspace, axes=(-2, -1)))
+
+                for sl_idx in self._select_slice_indices(volume.shape[0], slice_index):
+                    image = volume[sl_idx].astype(np.float32)
+                    image = (image - image.min()) / (image.max() - image.min() + 1e-8)
+                    image_hwc = np.stack([image, image, image], axis=2)
+                    yield f'{volume_stem}_sl{sl_idx:03d}', image_hwc
+
+    @staticmethod
+    def _select_slice_indices(num_slices, slice_index):
+        """Return a list of slice indices based on the slice_index argument."""
+        import random as _random
+        if slice_index == 'all':
+            return list(range(num_slices))
+        if slice_index == 'middle':
+            return [num_slices // 2]
+        if slice_index == 'random':
+            return [_random.randint(0, num_slices - 1)]
+        try:
+            return [min(int(slice_index), num_slices - 1)]
+        except (ValueError, TypeError):
+            raise ValueError(
+                f"fastmri_slice_index must be 'all', 'middle', 'random', or an int; "
+                f"got {slice_index!r}"
+            )
 
     # ------------------------------------------------------------------ #
     # Distortions                                                          #
