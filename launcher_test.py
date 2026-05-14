@@ -37,6 +37,7 @@ if __name__ == "__main__":
     parser.add_argument("--fastmri"           , action='store_true', help="include FastMRI slices as an additional test dataset")
     parser.add_argument("--fastmri_root"      , type=str, default=None, help="root directory for FastMRI data (defaults to deepinv data home)")
     parser.add_argument("--fastmri_anatomy"   , type=str, default='knee', choices=['knee', 'brain'], help="FastMRI anatomy to evaluate on")
+    parser.add_argument("--fastmri_slice_index", type=str, default='middle', help="slice selection for full FastMRISliceDataset: 'all', 'middle', 'random', or an int")
     argspar = parser.parse_args()
     # Normalize noise levels to [0, 1]
     argspar.noise_sigma /= 255.

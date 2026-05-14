@@ -17,7 +17,7 @@ from utils.utils import (batch_ssim, normalize, init_logger_ipol,
                          is_rgb, compute_noise_map, rgb_2_grey_tensor)
 
 try:
-    from deepinv.datasets import SimpleFastMRISliceDataset
+    from deepinv.datasets import SimpleFastMRISliceDataset, FastMRISliceDataset
     from deepinv.utils import get_data_home
     _DEEPINV_AVAILABLE = True
 except ImportError:
@@ -104,22 +104,43 @@ class DatasetTester:
         return np.stack([magnitude, magnitude, magnitude], axis=2).astype(np.float32)
 
     def _iter_fastmri(self):
-        """Yield (image_stem, image_hwc) tuples from the FastMRI dataset."""
+        """Yield (image_stem, image_hwc) tuples from the FastMRI dataset.
+
+        Uses FastMRISliceDataset (full dataset) when fastmri_root points to
+        a directory of .h5 volumes, otherwise falls back to the built-in
+        2-image demo via SimpleFastMRISliceDataset.
+        """
         if not _DEEPINV_AVAILABLE:
             raise ImportError(
                 'deepinv is required for FastMRI support. '
                 'Install with: pip install deepinv'
             )
         args = self.args
-        root = args.fastmri_root if args.fastmri_root else str(get_data_home())
-        fastmri_dataset = SimpleFastMRISliceDataset(
-            root_dir=root,
-            anatomy=args.fastmri_anatomy,
-            download=True,
-            train=True,
-        )
-        for i, slice_tensor in enumerate(fastmri_dataset):
-            yield f'fastmri_{args.fastmri_anatomy}_{i:04d}', self._load_fastmri_slice(slice_tensor)
+        root = args.fastmri_root if args.fastmri_root else None
+
+        if root is not None and os.path.isdir(root):
+            # Full FastMRISliceDataset: root contains .h5 volume files
+            fastmri_dataset = FastMRISliceDataset(
+                root=root,
+                slice_index=args.fastmri_slice_index,
+            )
+            for i, (x, y, _) in enumerate(fastmri_dataset):
+                # x is the magnitude RSS reconstruction (1, H, W)
+                image = x[0].numpy()                          # HxW
+                image = (image - image.min()) / (image.max() - image.min() + 1e-8)
+                image_hwc = np.stack([image, image, image], axis=2).astype(np.float32)
+                yield f'fastmri_{args.fastmri_anatomy}_{i:04d}', image_hwc
+        else:
+            # Demo subset: 2 slices, no sign-up required
+            demo_root = get_data_home() if root is None else root
+            fastmri_dataset = SimpleFastMRISliceDataset(
+                root_dir=demo_root,
+                anatomy=args.fastmri_anatomy,
+                download=True,
+                train=True,
+            )
+            for i, slice_tensor in enumerate(fastmri_dataset):
+                yield f'fastmri_{args.fastmri_anatomy}_{i:04d}', self._load_fastmri_slice(slice_tensor)
 
     # ------------------------------------------------------------------ #
     # Distortions                                                          #
