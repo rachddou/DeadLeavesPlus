@@ -34,6 +34,9 @@ if __name__ == "__main__":
     parser.add_argument("--rot_invariance"  , action='store_true', help="check rot invariance in denoising nets")
     parser.add_argument("--grey_color"      , action='store_true', help="true if we want to denoise each canal with the grey level trained model")
     parser.add_argument("--contrast_reduction", action='store_true', help="true if you want to reduce contrast of input images")
+    parser.add_argument("--fastmri"           , action='store_true', help="include FastMRI slices as an additional test dataset")
+    parser.add_argument("--fastmri_root"      , type=str, default=None, help="root directory for FastMRI data (defaults to deepinv data home)")
+    parser.add_argument("--fastmri_anatomy"   , type=str, default='knee', choices=['knee', 'brain'], help="FastMRI anatomy to evaluate on")
     argspar = parser.parse_args()
     # Normalize noise levels to [0, 1]
     argspar.noise_sigma /= 255.

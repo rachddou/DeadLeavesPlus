@@ -16,6 +16,13 @@ from utils.utils import (batch_ssim, normalize, init_logger_ipol,
                          variable_to_cv2_image, remove_dataparallel_wrapper,
                          is_rgb, compute_noise_map, rgb_2_grey_tensor)
 
+try:
+    from deepinv.datasets import SimpleFastMRISliceDataset
+    from deepinv.utils import get_data_home
+    _DEEPINV_AVAILABLE = True
+except ImportError:
+    _DEEPINV_AVAILABLE = False
+
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
@@ -76,7 +83,7 @@ class DatasetTester:
         ])
 
     def _load_image(self, filepath):
-        """Read one image, normalize to [0, 1] float32, crop to 1000×1000."""
+        """Read one image, normalize to [0, 1] float32, crop to 800×800."""
         image = cv2.imread(filepath)
         if image is None:
             raise RuntimeError(f'Could not read {filepath}')
@@ -84,6 +91,35 @@ class DatasetTester:
         if self.args.scale_invariance:
             image = pyramid_reduce(image, 4.5, channel_axis=2)
         return image[:800, :800, :]
+
+    def _load_fastmri_slice(self, slice_tensor):
+        """Convert a FastMRI slice tensor (2, H, W) → HxWx3 float32 [0, 1].
+
+        Computes the complex magnitude and duplicates it across 3 channels so
+        it is compatible with the existing RGB denoising pipeline.
+        """
+        magnitude = (slice_tensor[0] ** 2 + slice_tensor[1] ** 2).sqrt().numpy()
+        mag_min, mag_max = magnitude.min(), magnitude.max()
+        magnitude = (magnitude - mag_min) / (mag_max - mag_min + 1e-8)
+        return np.stack([magnitude, magnitude, magnitude], axis=2).astype(np.float32)
+
+    def _iter_fastmri(self):
+        """Yield (image_stem, image_hwc) tuples from the FastMRI dataset."""
+        if not _DEEPINV_AVAILABLE:
+            raise ImportError(
+                'deepinv is required for FastMRI support. '
+                'Install with: pip install deepinv'
+            )
+        args = self.args
+        root = args.fastmri_root if args.fastmri_root else str(get_data_home())
+        fastmri_dataset = SimpleFastMRISliceDataset(
+            root_dir=root,
+            anatomy=args.fastmri_anatomy,
+            download=True,
+            train=True,
+        )
+        for i, slice_tensor in enumerate(fastmri_dataset):
+            yield f'fastmri_{args.fastmri_anatomy}_{i:04d}', self._load_fastmri_slice(slice_tensor)
 
     # ------------------------------------------------------------------ #
     # Distortions                                                          #
@@ -257,11 +293,44 @@ class DatasetTester:
     # Main evaluation loop                                                 #
     # ------------------------------------------------------------------ #
 
+    def _eval_image_source(self, dataset_label, noise_sigmas, image_source_fn):
+        """Evaluate on all images produced by image_source_fn for every noise level.
+
+        Parameters
+        ----------
+        dataset_label   : str       — used in log summaries
+        noise_sigmas    : list[float]
+        image_source_fn : callable  — called once per noise level; returns a
+                          fresh iterable of (image_stem: str, image: HxWxC ndarray)
+        """
+        args = self.args
+        for noise_sigma in noise_sigmas:
+            aggregated_metrics = dict(psnr=0., psnr_noisy=0., ssim=0., lpips=0., count=0)
+
+            for image_stem, image in image_source_fn():
+                original_tensor, rotation_mask, pad_height, pad_width = self._apply_distortions(image)
+                denoised_tensor, clean_tensor, noisy_tensor, runtime = self._run_model(
+                    original_tensor, noise_sigma, pad_height, pad_width)
+                metrics = self._compute_metrics(
+                    denoised_tensor, clean_tensor, noisy_tensor, rotation_mask)
+
+                aggregated_metrics['psnr'] += metrics['psnr']
+                aggregated_metrics['psnr_noisy'] += metrics['psnr_noisy']
+                aggregated_metrics['ssim'] += metrics['ssim']
+                aggregated_metrics['lpips'] += metrics['lpips']
+                aggregated_metrics['count'] += 1
+
+                self._log_image(image_stem, metrics, runtime)
+                if args.save:
+                    self._save_outputs(image_stem, metrics)
+
+            self._log_dataset_summary(dataset_label, noise_sigma, aggregated_metrics)
+
     def test_dataset(self, dataset_paths, noise_sigmas):
         """Evaluate the model on every (dataset, noise_sigma) combination."""
-        args = self.args
         loaded_num_channels = None
 
+        # ── Standard image-folder datasets ──────────────────────────────────
         for dataset_path in dataset_paths:
             image_files = self._list_images(dataset_path)
             if not image_files:
@@ -281,29 +350,26 @@ class DatasetTester:
                 self._load_model(num_channels)
                 loaded_num_channels = num_channels
 
-            for noise_sigma in noise_sigmas:
-                aggregated_metrics = dict(psnr=0., psnr_noisy=0., ssim=0., lpips=0., count=0)
+            def _file_source(files=image_files):
+                return (
+                    (os.path.splitext(os.path.basename(fp))[0], self._load_image(fp))
+                    for fp in files
+                )
 
-                for filepath in image_files:
-                    image_stem = os.path.splitext(os.path.basename(filepath))[0]
-                    image = self._load_image(filepath)
-                    original_tensor, rotation_mask, pad_height, pad_width = self._apply_distortions(image)
-                    denoised_tensor, clean_tensor, noisy_tensor, runtime = self._run_model(
-                        original_tensor, noise_sigma, pad_height, pad_width)
-                    metrics = self._compute_metrics(
-                        denoised_tensor, clean_tensor, noisy_tensor, rotation_mask)
+            self._eval_image_source(dataset_path, noise_sigmas, _file_source)
 
-                    aggregated_metrics['psnr'] += metrics['psnr']
-                    aggregated_metrics['psnr_noisy'] += metrics['psnr_noisy']
-                    aggregated_metrics['ssim'] += metrics['ssim']
-                    aggregated_metrics['lpips'] += metrics['lpips']
-                    aggregated_metrics['count'] += 1
+        # ── FastMRI dataset (optional) ───────────────────────────────────────
+        if self.args.fastmri:
+            num_channels = 3   # magnitude duplicated to 3 channels
+            print(f'\nFastMRI ({self.args.fastmri_anatomy}) denoising — '
+                  f'magnitude tripled to RGB')
 
-                    self._log_image(image_stem, metrics, runtime)
-                    if args.save:
-                        self._save_outputs(image_stem, metrics)
+            if num_channels != loaded_num_channels:
+                self._load_model(num_channels)
+                loaded_num_channels = num_channels
 
-                self._log_dataset_summary(dataset_path, noise_sigma, aggregated_metrics)
+            dataset_label = f'FastMRI-{self.args.fastmri_anatomy}'
+            self._eval_image_source(dataset_label, noise_sigmas, self._iter_fastmri)
 
 
 def test_dataset(args):
