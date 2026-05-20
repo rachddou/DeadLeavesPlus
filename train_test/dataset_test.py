@@ -218,8 +218,13 @@ class DatasetTester:
             image = np.clip(cv2.cvtColor(image_hsv, cv2.COLOR_HSV2RGB), 0.0, 1.0)
 
         if args.contrast_invariance:
-            channel_mean = image.mean(axis=(0, 1), keepdims=True)
-            image = (image - channel_mean) * args.contrast_factor + channel_mean
+            # S-curve: sigmoid-based tone mapping that fixes 0→0, 0.5→0.5, 1→1.
+            # contrast_factor is the sigmoid slope k; k→0 gives identity, larger k
+            # gives a steeper S-shape (higher contrast in midtones).
+            k = args.contrast_factor
+            lo = 1.0 / (1.0 + np.exp(k / 2.0))   # σ(−k/2)
+            hi = 1.0 / (1.0 + np.exp(-k / 2.0))  # σ( k/2)
+            image = (1.0 / (1.0 + np.exp(-k * (image - 0.5))) - lo) / (hi - lo)
             image = np.clip(image, 0.0, 1.0)
 
         crop_height = 8 * (image.shape[0] // 8)

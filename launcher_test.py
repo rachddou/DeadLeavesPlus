@@ -39,7 +39,7 @@ if __name__ == "__main__":
     parser.add_argument("--hue_invariance"   , action='store_true', help="apply global hue shift distortion (RGB images only)")
     parser.add_argument("--hue_shift"        , type=float, default=30.0, help="hue rotation in degrees [0, 360] (used with --hue_invariance)")
     parser.add_argument("--contrast_invariance", action='store_true', help="apply contrast scaling distortion before denoising")
-    parser.add_argument("--contrast_factor"  , type=float, default=1.5, help="contrast scaling factor (>1 increases, <1 decreases; used with --contrast_invariance)")
+    parser.add_argument("--contrast_factor"  , type=float, default=5.0, help="S-curve slope k: k→0 is identity, larger k gives steeper midtone contrast (used with --contrast_invariance)")
     parser.add_argument("--fastmri"           , action='store_true', help="include FastMRI slices as an additional test dataset")
     parser.add_argument("--fastmri_root"      , type=str, default=None, help="root directory for FastMRI data (defaults to deepinv data home)")
     parser.add_argument("--fastmri_anatomy"   , type=str, default='knee', choices=['knee', 'brain'], help="FastMRI anatomy to evaluate on")
