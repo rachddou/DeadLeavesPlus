@@ -208,6 +208,20 @@ class DatasetTester:
                                             resize=True, preserve_range=True,
                                             mode='constant'))
 
+        if args.blur_invariance:
+            ksize = 2 * max(1, int(3 * args.blur_sigma + 0.5)) + 1
+            image = cv2.GaussianBlur(image, (ksize, ksize), args.blur_sigma)
+
+        if args.hue_invariance and image.shape[2] == 3:
+            image_hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+            image_hsv[..., 0] = (image_hsv[..., 0] + args.hue_shift) % 360.0
+            image = np.clip(cv2.cvtColor(image_hsv, cv2.COLOR_HSV2RGB), 0.0, 1.0)
+
+        if args.contrast_invariance:
+            channel_mean = image.mean(axis=(0, 1), keepdims=True)
+            image = (image - channel_mean) * args.contrast_factor + channel_mean
+            image = np.clip(image, 0.0, 1.0)
+
         crop_height = 8 * (image.shape[0] // 8)
         crop_width = 8 * (image.shape[1] // 8)
         image = image.transpose(2, 0, 1)[:, :crop_height, :crop_width]
