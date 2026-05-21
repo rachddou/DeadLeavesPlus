@@ -89,8 +89,8 @@ class DatasetTester:
         if image is None:
             raise RuntimeError(f'Could not read {filepath}')
         image = normalize(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-        if self.args.scale_invariance:
-            image = pyramid_reduce(image, 4.5, channel_axis=2)
+        if self.args.scale_invariance and self.args.scale_factor > 1.0:
+            image = pyramid_reduce(image, self.args.scale_factor, channel_axis=2)
         return image[:800, :800, :]
 
     def _load_fastmri_slice(self, slice_tensor):

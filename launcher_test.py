@@ -15,7 +15,7 @@ if __name__ == "__main__":
     parser.add_argument("--save_dir"        , type=str  , default = "dl_denoising/", help=" noise map mode") 
     parser.add_argument("--model_path","--p", type=str  , default = "TRAINING_LOGS/mix_acutance/ckpt.pth")
     parser.add_argument("--model"           , type=str  , default='DRUNet' , help="Nmae of the model to train on")
-    parser.add_argument("--angle"           , type=int  , default = 5, help=" number of different realisations of the noise")
+    parser.add_argument("--angle"           , type=float, default = 5.0, help="rotation angle in degrees (used with --rot_invariance)")
     parser.add_argument("--Nmulti"          , type=int  , default = 7, help=" number of different realisations of the noise")
     parser.add_argument("--noise_sigma"     , type=float, default=25, help='noise level used on test set')
     
@@ -29,6 +29,7 @@ if __name__ == "__main__":
     parser.add_argument("--pieapp"          , action='store_true', help="true if we want to measure the pieapp metric")
     parser.add_argument("--blind"           , action='store_true',help="activates blind denoising")
     parser.add_argument("--scale_invariance", action='store_true', help="check scale invariance in denoising nets")
+    parser.add_argument("--scale_factor"    , type=float, default=4.5, help="downscale factor for pyramid_reduce (used with --scale_invariance; 0 or 1 = identity)")
     parser.add_argument("--lr_invariance"   , action='store_true', help="check fliplr invariance in denoising nets")
     parser.add_argument("--ud_invariance"   , action='store_true', help="check flipud invariance in denoising nets")
     parser.add_argument("--rot_invariance"  , action='store_true', help="check rot invariance in denoising nets")
