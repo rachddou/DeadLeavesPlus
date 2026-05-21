@@ -33,7 +33,11 @@ class DatasetTester:
     def __init__(self, args):
         torch.manual_seed(0)
         self.args = args
-        self.logger = init_logger_ipol(args.model_path.split('/')[-1].split('.')[0])
+        log_dir = os.path.join('tests', args.save_dir)
+        os.makedirs(log_dir, exist_ok=True)
+        model_stem = args.model_path.split('/')[-1].split('.')[0]
+        log_name = f"{model_stem}_{args.suffix}" if args.suffix else model_stem
+        self.logger = init_logger_ipol(os.path.join(log_dir, log_name))
         self.dtype = torch.cuda.FloatTensor if args.cuda else torch.FloatTensor
         self.lpips_fn = (lpips.LPIPS(net='alex').cuda()
                          if args.cuda else lpips.LPIPS(net='alex'))
@@ -366,7 +370,6 @@ class DatasetTester:
     def _save_outputs(self, image_stem, metrics):
         args = self.args
         save_dir = os.path.join('tests', args.save_dir)
-        os.makedirs(save_dir, exist_ok=True)
         cv2.imwrite(os.path.join(save_dir, image_stem + '_denoised.png'), metrics['denoised_image'])
         if args.save_res:
             cv2.imwrite(os.path.join(save_dir, image_stem + '_residual.png'), metrics['residual'])
