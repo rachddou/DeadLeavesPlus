@@ -22,4 +22,23 @@ dependencies = [
     "torch-fidelity>=0.4.0",
     "torcheval>=0.0.7",
     "torchmetrics>=1.9.0",
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    "scipy>=1.10.0",
+    "pillow>=9.0.0",
+    "deepinv>=0.4.0",
 ]
+
+[tool.uv]
+override-dependencies = [
+    "antlr4-python3-runtime>=4.13",
+]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu124" }
+torchvision = { index = "pytorch-cu124" }
+
+[[tool.uv.index]]
+name = "pytorch-cu124"
+url = "https://download.pytorch.org/whl/cu124"
+explicit = true

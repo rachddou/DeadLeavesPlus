@@ -34,6 +34,16 @@ if __name__ == "__main__":
     parser.add_argument("--rot_invariance"  , action='store_true', help="check rot invariance in denoising nets")
     parser.add_argument("--grey_color"      , action='store_true', help="true if we want to denoise each canal with the grey level trained model")
     parser.add_argument("--contrast_reduction", action='store_true', help="true if you want to reduce contrast of input images")
+    parser.add_argument("--blur_invariance"  , action='store_true', help="apply Gaussian blur distortion before denoising")
+    parser.add_argument("--blur_sigma"       , type=float, default=2.0, help="Gaussian blur sigma (used with --blur_invariance)")
+    parser.add_argument("--hue_invariance"   , action='store_true', help="apply global hue shift distortion (RGB images only)")
+    parser.add_argument("--hue_shift"        , type=float, default=30.0, help="hue rotation in degrees [0, 360] (used with --hue_invariance)")
+    parser.add_argument("--contrast_invariance", action='store_true', help="apply contrast scaling distortion before denoising")
+    parser.add_argument("--contrast_factor"  , type=float, default=5.0, help="S-curve slope k: k→0 is identity, larger k gives steeper midtone contrast (used with --contrast_invariance)")
+    parser.add_argument("--fastmri"           , action='store_true', help="include FastMRI slices as an additional test dataset")
+    parser.add_argument("--fastmri_root"      , type=str, default=None, help="root directory for FastMRI data (defaults to deepinv data home)")
+    parser.add_argument("--fastmri_anatomy"   , type=str, default='knee', choices=['knee', 'brain'], help="FastMRI anatomy to evaluate on")
+    parser.add_argument("--fastmri_slice_index", type=str, default='middle', help="slice selection for full FastMRISliceDataset: 'all', 'middle', 'random', or an int")
     argspar = parser.parse_args()
     # Normalize noise levels to [0, 1]
     argspar.noise_sigma /= 255.
