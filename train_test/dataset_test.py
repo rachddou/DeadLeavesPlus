@@ -206,9 +206,10 @@ class DatasetTester:
             image = np.fliplr(image)
         if args.rot_invariance:
             rotation_angle = args.angle
+            original_shape = image.shape  # must be saved before rotation changes the shape
             image = rotate(image, rotation_angle, resize=True,
                            preserve_range=True, mode='constant')
-            rotation_mask = np.bool_(rotate(np.ones(image.shape), rotation_angle,
+            rotation_mask = np.bool_(rotate(np.ones(original_shape), rotation_angle,
                                             resize=True, preserve_range=True,
                                             mode='constant'))
 
