@@ -2,16 +2,16 @@ defaults:
   - override hydra/launcher: joblib
 
 shape:
-  radius_min: 10           # minimum shape radius in pixels (power-law distributed)
+  radius_min: 2           # minimum shape radius in pixels (power-law distributed)
   radius_max: 500          # maximum shape radius in pixels
   power_law_exponent: 3.0  # controls size distribution; higher = more small shapes
-  shape_type: "poly"       # "poly" | "disk" | "rectangle" | "mix"
-  multiple_shapes: True    # randomly switch between "poly" and "mix" each image
+  shape_type: "disk"       # "poly" | "disk" | "rectangle" | "mix"
+  multiple_shapes: False    # randomly switch between "poly" and "mix" each image
 
 task: 1
 
 texture:
-  enabled: True
+  enabled: False
   types: ["sin", "freq_noise", "texture_mixes"]
   type_weights: [0.16, 0.67, 0.17]  # sampling probabilities, must sum to 1
   slope_range: [[0.5, 2.5]]         # 1/f^s frequency slope; supports disjoint
@@ -25,22 +25,22 @@ texture:
 
 color:
   use_natural_images: True          # sample colours from real images
-  image_dir: ""                     # path to source images (required when
+  image_dir: "/lustre/fswork/projects/rech/cjz/udz45zt/datasets/datasets_drunet/WaterlooDB"                     # path to source images (required when
                                     # use_natural_images is True)
   grey: False                       # save images as greyscale
   partial_images: False
 
 io:
   path_origin: "datasets/"
-  path: "vibrant_leaves/"
+  path: "dead_leaves_v2/"
 
 post_process:
-  depth_of_field: True              # composite background/plain/foreground layers
-  blur_type: "gaussian"             # "gaussian" | "lens"
+  depth_of_field: False              # composite background/plain/foreground layers
+  blur_type: "None"             # "gaussian" | "lens"
   extra_blur: False                 # additional Gaussian blur after DoF compositing
-  downscale: False                  # 2x downsample the final image
+  downscale: True                  # 2x downsample the final image
 
-n_images: 200
+n_images: 400
 image_size: 512
 image_type: "dead_leaves"          # "dead_leaves" | "textures"
 test: False

@@ -2,9 +2,11 @@
 # Test all distortion invariances on Kodak24 at sigma=25.
 # Usage: bash jobs/test_invariances.sh [model_path]
 
-DATASET="datasets/test_sets/Kodak24"
+BASE=/lustre/fswork/projects/rech/cjz/udz45zt
+DATASET=$BASE/datasets/datasets_drunet/Kodak24
 SIGMA=25
-MODEL=${1:-"TRAINING_LOGS/mix_acutance/ckpt.pth"}
+# MODEL=$BASE/DeadLeavesPlus/models_zoo/drunet_vl.pth
+MODEL=$BASE/deepDenoisingInvestigations/logs/checkpoints_Drunet_cmp_smax50_smin0_bias0_l2_res0_l2_blind_False_bias_False/net.pth
 SAVE_DIR="invariance_tests"
 
 # ------------------------------------------------------------------ #

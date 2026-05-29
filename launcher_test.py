@@ -1,4 +1,6 @@
 from train_test.dataset_test import test_dataset
+from train_test.test_deblurring import test_deblur_dataset
+from train_test.test_inpainting import test_inpaint_dataset
 import torch
 import argparse
 
@@ -6,6 +8,9 @@ import argparse
 if __name__ == "__main__":
     # Parse arguments
     parser = argparse.ArgumentParser(description="FFDNet_Test")
+    parser.add_argument('--task'            , type=str  , default='denoise',
+                        choices=['denoise', 'deblur', 'inpaint'],
+                        help='Which task to evaluate: denoise (default), deblur, or inpaint')
     parser.add_argument('--add_noise'       , type=str  , default="True")
     parser.add_argument("--input"           , type=str  , default="datasets/test_sets/Kodak24/", help='path to a single input dataset (legacy)')
     parser.add_argument("--inputs"          , type=str  , nargs='+', default=None, help='list of dataset paths to evaluate')
@@ -45,6 +50,20 @@ if __name__ == "__main__":
     parser.add_argument("--fastmri_root"      , type=str, default=None, help="root directory for FastMRI data (defaults to deepinv data home)")
     parser.add_argument("--fastmri_anatomy"   , type=str, default='knee', choices=['knee', 'brain'], help="FastMRI anatomy to evaluate on")
     parser.add_argument("--fastmri_slice_index", type=str, default='middle', help="slice selection for full FastMRISliceDataset: 'all', 'middle', 'random', or an int")
+
+    # ── Deblurring-specific arguments ─────────────────────────────────────
+    parser.add_argument("--kernel_path"     , type=str  , default=None,
+                        help="Path to Levin09.mat (or dir of per-kernel .mat files) for deblur evaluation")
+    parser.add_argument("--noise_sigma_deblur", type=float, default=0.0,
+                        help="Fixed AWGN sigma (0-255 scale) added after blur during deblur evaluation (default: 0 = no noise)")
+    parser.add_argument("--gray"            , action='store_true',
+                        help="Force grayscale mode for deblur/inpaint evaluation")
+
+    # ── Inpainting-specific arguments ─────────────────────────────────────
+    parser.add_argument("--p_keep_values"   , type=float, nargs='+', default=None,
+                        help="List of fixed p_keep values for inpaint evaluation "
+                             "(e.g. 0.1 0.2 0.5). Defaults to [0.1, 0.2, 0.3, 0.5, 0.7, 0.9].")
+
     argspar = parser.parse_args()
     # Normalize noise levels to [0, 1]
     argspar.noise_sigma /= 255.
@@ -57,9 +76,28 @@ if __name__ == "__main__":
     # use CUDA?
     argspar.cuda = not argspar.no_gpu and torch.cuda.is_available()
     print(torch.cuda.is_available())
-    print("\n### Testing denoising model ###")
-    print("> Parameters:")
-    for p, v in zip(argspar.__dict__.keys(), argspar.__dict__.values()):
-        print('\t{}: {}'.format(p, v))
-    print('\n')
-    test_dataset(argspar)
+
+    if argspar.task == 'deblur':
+        if argspar.kernel_path is None:
+            parser.error("--kernel_path is required for --task deblur")
+        argspar.noise_sigma = argspar.noise_sigma_deblur
+        print("\n### Testing deblurring model ###")
+        print("> Parameters:")
+        for p, v in zip(argspar.__dict__.keys(), argspar.__dict__.values()):
+            print('\t{}: {}'.format(p, v))
+        print('\n')
+        test_deblur_dataset(argspar)
+    elif argspar.task == 'inpaint':
+        print("\n### Testing inpainting model ###")
+        print("> Parameters:")
+        for p, v in zip(argspar.__dict__.keys(), argspar.__dict__.values()):
+            print('\t{}: {}'.format(p, v))
+        print('\n')
+        test_inpaint_dataset(argspar)
+    else:
+        print("\n### Testing denoising model ###")
+        print("> Parameters:")
+        for p, v in zip(argspar.__dict__.keys(), argspar.__dict__.values()):
+            print('\t{}: {}'.format(p, v))
+        print('\n')
+        test_dataset(argspar)

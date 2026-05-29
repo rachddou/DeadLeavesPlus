@@ -18,6 +18,7 @@ events.*
 *.yaml
 *.log
 *.png 
+*.txt
 
 !readme_images/*
 !setup.sh

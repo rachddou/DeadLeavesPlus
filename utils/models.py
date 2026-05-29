@@ -197,7 +197,7 @@ class UNetRes(nn.Module):
 
         self.m_tail = B.conv(nc[0], out_nc, bias=False, mode='C')
 
-    def forward(self, x0):        
+    def forward(self, x0):
         x1 = self.m_head(x0)
         x2 = self.m_down1(x1)
         x3 = self.m_down2(x2)
@@ -211,3 +211,52 @@ class UNetRes(nn.Module):
         return x
 
 
+def _conv_bn_relu(in_ch, out_ch):
+    return nn.Sequential(
+        nn.Conv2d(in_ch, out_ch, 3, padding=1, bias=False),
+        nn.BatchNorm2d(out_ch),
+        nn.ReLU(inplace=True),
+        nn.Conv2d(out_ch, out_ch, 3, padding=1, bias=False),
+        nn.BatchNorm2d(out_ch),
+        nn.ReLU(inplace=True),
+    )
+
+
+class UNetDeblur(nn.Module):
+    """Plain encoder-decoder UNet for blind deblurring.
+
+    Three pooling levels, skip connections via concatenation, no residual blocks.
+    nc controls the base channel width; default [64, 128, 256, 512].
+    """
+    def __init__(self, in_nc=3, out_nc=3, nc=(64, 128, 256, 512)):
+        super().__init__()
+        c1, c2, c3, c4 = nc
+
+        self.enc1 = _conv_bn_relu(in_nc, c1)
+        self.enc2 = _conv_bn_relu(c1,    c2)
+        self.enc3 = _conv_bn_relu(c2,    c3)
+        self.pool = nn.MaxPool2d(2)
+
+        self.bottleneck = _conv_bn_relu(c3, c4)
+
+        self.up3   = nn.ConvTranspose2d(c4, c3, 2, stride=2)
+        self.dec3  = _conv_bn_relu(c3 + c3, c3)
+        self.up2   = nn.ConvTranspose2d(c3, c2, 2, stride=2)
+        self.dec2  = _conv_bn_relu(c2 + c2, c2)
+        self.up1   = nn.ConvTranspose2d(c2, c1, 2, stride=2)
+        self.dec1  = _conv_bn_relu(c1 + c1, c1)
+
+        self.head  = nn.Conv2d(c1, out_nc, 1)
+
+    def forward(self, x):
+        e1 = self.enc1(x)
+        e2 = self.enc2(self.pool(e1))
+        e3 = self.enc3(self.pool(e2))
+
+        b  = self.bottleneck(self.pool(e3))
+
+        d3 = self.dec3(torch.cat([self.up3(b),  e3], dim=1))
+        d2 = self.dec2(torch.cat([self.up2(d3), e2], dim=1))
+        d1 = self.dec1(torch.cat([self.up1(d2), e1], dim=1))
+
+        return self.head(d1)

@@ -27,11 +27,14 @@ dependencies = [
     "scipy>=1.10.0",
     "pillow>=9.0.0",
     "deepinv>=0.4.0",
+    "nvidia-nccl-cu12",
+    "nvidia-cudnn-cu12",
+    "wandb>=0.27.0",
 ]
 
 [tool.uv]
 override-dependencies = [
-    "antlr4-python3-runtime>=4.13",
+    "antlr4-python3-runtime==4.9.3",
 ]
 
 [tool.uv.sources]
