@@ -99,18 +99,45 @@ This will create a directory where the weights are stored inside `TRAINING_LOGS/
 
 ### Testing
 
-#### Denoising
+All four restoration tasks — **denoising**, **deblurring**, **inpainting**, and **super-resolution** — are evaluated through a single entry point:
 
-If you just want to test the models you can download the weights on the following [link](https://drive.switch.ch/index.php/s/Bmdq0lOHylwgb9d).
+```bash
+python launcher_test.py --task <denoise|deblur|inpaint|sr> [options]
+```
 
-You should also download the [testsets](https://drive.switch.ch/index.php/s/jfh3N5ZNv1KVPpP) and place them in the `datasets/test_sets/` folder.
+Pre-trained weights for denoising, deblurring and inpainting are available [here](https://drive.switch.ch/index.php/s/Bmdq0lOHylwgb9d). Download the [testsets](https://drive.switch.ch/index.php/s/jfh3N5ZNv1KVPpP) and place them in the `datasets/test_sets/` folder.
 
-To test the models, you can run the command `.jobs/test.sh`
+Pre-trained SwinIR weights for super-resolution are available [here](https://drive.switch.ch/index.php/s/uCdAIpnKEfE09xJ); place them under `sr_models/swin_ir_x2/` and `sr_models/swin_ir_x4/`.
 
-This calls the launcher_test.py function with a set of arguments such as the testing dataset and the model to test.
+**Denoising** — evaluate a DRUNet model on one or several datasets at multiple noise levels:
 
-#### Super-resolution
+```bash
+python launcher_test.py --task denoise \
+    --model_path TRAINING_LOGS/my_model/ckpt.pth \
+    --inputs datasets/test_sets/Kodak24 datasets/test_sets/CBSD68 \
+    --noise_sigmas 15 25 50 \
+    --save_dir denoising/my_model
+```
 
-To test the SWIN-IR lightweight super-resolution model, we provide the weights on the following [link](https://drive.switch.ch/index.php/s/uCdAIpnKEfE09xJ).
+**Deblurring** — evaluate on a set of images using Levin09 blur kernels:
 
-Please refer to the official implementation for testing/training the models: [swin-IR](https://github.com/JingyunLiang/SwinIR?tab=readme-ov-file).
+```bash
+python launcher_test.py --task deblur \
+    --model_path TRAINING_LOGS/my_deblur_model/ckpt.pth \
+    --inputs datasets/test_sets/CBSD68 \
+    --kernel_path datasets/Levin09.mat \
+    --save_dir deblurring/my_model
+```
+
+**Super-resolution** — evaluate a lightweight SwinIR model at scale ×2 or ×4. LR images are generated on-the-fly from the HR ground truth using a MATLAB-equivalent bicubic downsampler. SR evaluation uses [KAIR](https://github.com/cszn/KAIR) (included as a git submodule); initialise it after cloning with `git submodule update --init --recursive`.
+
+```bash
+python launcher_test.py --task sr \
+    --scale 2 \
+    --model_path sr_models/swin_ir_x2/DL_E.pth \
+    --sr_hr_dirs Set5/original Set14/image_SRF_2/HR \
+    --sr_names   Set5          Set14 \
+    --save_dir   sr_x2/DL_E
+```
+
+To use pre-existing LR images instead of generating them on-the-fly, pass `--sr_lr_dirs` alongside `--sr_hr_dirs`.
