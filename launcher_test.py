@@ -1,6 +1,8 @@
+import os
 from train_test.dataset_test import test_dataset
 from train_test.test_deblurring import test_deblur_dataset
 from train_test.test_inpainting import test_inpaint_dataset
+from train_test.test_sr import test_sr_dataset
 import torch
 import argparse
 
@@ -9,7 +11,7 @@ if __name__ == "__main__":
     # Parse arguments
     parser = argparse.ArgumentParser(description="FFDNet_Test")
     parser.add_argument('--task'            , type=str  , default='denoise',
-                        choices=['denoise', 'deblur', 'inpaint'],
+                        choices=['denoise', 'deblur', 'inpaint', 'sr'],
                         help='Which task to evaluate: denoise (default), deblur, or inpaint')
     parser.add_argument('--add_noise'       , type=str  , default="True")
     parser.add_argument("--input"           , type=str  , default="datasets/test_sets/Kodak24/", help='path to a single input dataset (legacy)')
@@ -56,8 +58,24 @@ if __name__ == "__main__":
                         help="Path to Levin09.mat (or dir of per-kernel .mat files) for deblur evaluation")
     parser.add_argument("--noise_sigma_deblur", type=float, default=0.0,
                         help="Fixed AWGN sigma (0-255 scale) added after blur during deblur evaluation (default: 0 = no noise)")
+    parser.add_argument("--kernel_indices"  , type=int  , nargs='+', default=None,
+                        help="Subset of kernel indices (0-based) to evaluate; default tests all kernels")
+    parser.add_argument("--save_blurry"     , action='store_true',
+                        help="save blurry (degraded) input images alongside deblurred outputs")
     parser.add_argument("--gray"            , action='store_true',
                         help="Force grayscale mode for deblur/inpaint evaluation")
+
+    # ── Super-resolution-specific arguments ───────────────────────────────
+    parser.add_argument("--scale"           , type=int  , default=2,
+                        choices=[2, 4],
+                        help="SR upscale factor (2 or 4)")
+    parser.add_argument("--sr_hr_dirs"      , type=str  , nargs='+', default=None,
+                        help="List of HR directories for SR evaluation")
+    parser.add_argument("--sr_lr_dirs"      , type=str  , nargs='+', default=None,
+                        help="Optional list of pre-existing LR directories (one per HR dir). "
+                             "If omitted, LR is generated on-the-fly from HR via MATLAB bicubic.")
+    parser.add_argument("--sr_names"        , type=str  , nargs='+', default=None,
+                        help="Display names for each dataset (optional)")
 
     # ── Inpainting-specific arguments ─────────────────────────────────────
     parser.add_argument("--p_keep_values"   , type=float, nargs='+', default=None,
@@ -77,7 +95,22 @@ if __name__ == "__main__":
     argspar.cuda = not argspar.no_gpu and torch.cuda.is_available()
     print(torch.cuda.is_available())
 
-    if argspar.task == 'deblur':
+    if argspar.task == 'sr':
+        if not argspar.sr_hr_dirs:
+            parser.error("--sr_hr_dirs is required for --task sr")
+        lr_dirs = argspar.sr_lr_dirs or [None] * len(argspar.sr_hr_dirs)
+        if len(lr_dirs) != len(argspar.sr_hr_dirs):
+            parser.error("--sr_lr_dirs and --sr_hr_dirs must have the same number of entries")
+        names = argspar.sr_names or [
+            os.path.basename(d.rstrip('/')) for d in argspar.sr_hr_dirs]
+        argspar.sr_pairs = list(zip(argspar.sr_hr_dirs, lr_dirs, names))
+        print("\n### Testing super-resolution model ###")
+        print("> Parameters:")
+        for p, v in zip(argspar.__dict__.keys(), argspar.__dict__.values()):
+            print('\t{}: {}'.format(p, v))
+        print('\n')
+        test_sr_dataset(argspar)
+    elif argspar.task == 'deblur':
         if argspar.kernel_path is None:
             parser.error("--kernel_path is required for --task deblur")
         argspar.noise_sigma = argspar.noise_sigma_deblur
