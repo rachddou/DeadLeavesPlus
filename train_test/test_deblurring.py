@@ -245,7 +245,11 @@ class DatasetDeblurTester:
     def test_dataset(self, dataset_paths, kernel_path):
         """Evaluate the model on every (dataset, kernel) combination."""
         kernels = load_levin_kernels(kernel_path)
-        print(f"\nTesting with {len(kernels)} Levin kernels")
+        if self.args.kernel_indices is not None:
+            kernels = [kernels[i] for i in self.args.kernel_indices]
+            print(f"\nTesting with kernels {self.args.kernel_indices}")
+        else:
+            print(f"\nTesting with {len(kernels)} Levin kernels")
 
         loaded_num_channels = None
         all_dataset_aggs = {}
@@ -292,11 +296,16 @@ class DatasetDeblurTester:
                     agg['count']       += 1
 
                     self._log_image(img_stem, k_idx, metrics, runtime)
-                    if self.args.save:
+                    if self.args.save or self.args.save_blurry:
                         save_dir = os.path.join('tests', self.args.save_dir)
-                        out_name = f"{img_stem}_k{k_idx:02d}_deblurred.png"
-                        cv2.imwrite(os.path.join(save_dir, out_name),
-                                    metrics['deblurred_cv2'])
+                        if self.args.save:
+                            out_name = f"{img_stem}_k{k_idx:02d}_deblurred.png"
+                            cv2.imwrite(os.path.join(save_dir, out_name),
+                                        metrics['deblurred_cv2'])
+                        if self.args.save_blurry:
+                            blurry_cv2 = variable_to_cv2_image(blurry_t)
+                            out_name = f"{img_stem}_k{k_idx:02d}_blurry.png"
+                            cv2.imwrite(os.path.join(save_dir, out_name), blurry_cv2)
 
                 self._log_kernel_summary(dataset_path, k_idx, agg)
                 kernel_aggs.append(agg)
