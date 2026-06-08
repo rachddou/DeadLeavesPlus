@@ -336,12 +336,11 @@ class DatasetTester:
         psnr_noisy = compare_psnr(variable_to_cv2_image(noisy_tensor), original_image)
         ssim_val = batch_ssim(denoised_tensor, clean_tensor) if args.add_noise else 0.0
 
-        def _to_lpips_tensor(img_uint8):
-            tensor = torch.from_numpy(img_uint8.transpose(2, 0, 1)).unsqueeze(0).float() / 127.5 - 1.0
-            return tensor.cuda() if args.cuda else tensor
+        def _to_lpips_tensor(tensor_bchw):
+            return (tensor_bchw.float() * 2.0 - 1.0)
 
         lpips_val = self.lpips_fn(
-            _to_lpips_tensor(denoised_image), _to_lpips_tensor(original_image)
+            _to_lpips_tensor(denoised_tensor), _to_lpips_tensor(clean_tensor)
         ).item()
 
         return dict(psnr=psnr, psnr_noisy=psnr_noisy, ssim=ssim_val,

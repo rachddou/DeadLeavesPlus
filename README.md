@@ -141,3 +141,27 @@ python launcher_test.py --task sr \
 ```
 
 To use pre-existing LR images instead of generating them on-the-fly, pass `--sr_lr_dirs` alongside `--sr_hr_dirs`.
+
+### DPIR Plug-and-Play reconstruction
+
+`pnp_reconstruction.py` implements the **DPIR** algorithm (Zhang et al., 2021) for inpainting and deblurring using a DRUNet denoiser as an implicit prior. DPIR uses Half-Quadratic Splitting (HQS) with a log-spaced decreasing noise schedule, driven by [DeepInverse](https://deepinv.github.io).
+
+For inpainting a TV-PGD warm start is computed first, then passed as initialisation to HQS. For deblurring the HQS solver is run directly from the pseudo-inverse.
+
+```bash
+# Inpainting (30% pixels kept)
+python pnp_reconstruction.py \
+    --task inpainting \
+    --inputs Set14/image_SRF_2/HR \
+    --model_path models_zoo/drunet_dl.pth \
+    --mask 0.3 --save --save_dir pnp_inpainting/drunet_dl
+
+# Deblurring with Levin09 kernels
+python pnp_reconstruction.py \
+    --task deblurring \
+    --inputs Set14/image_SRF_2/HR \
+    --model_path models_zoo/drunet_dl.pth \
+    --kernel_path datasets/Levin09.mat \
+    --noise_sigma 7 --save_dir pnp_deblurring/drunet_dl
+```
+

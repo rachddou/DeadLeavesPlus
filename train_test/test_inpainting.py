@@ -169,12 +169,11 @@ class DatasetInpaintTester:
         psnr_masked = compare_psnr(clean_cv2, variable_to_cv2_image(masked_tensor))
         ssim_val = batch_ssim(inpainted_tensor, clean_tensor)
 
-        def _to_lpips(img_uint8):
-            t = torch.from_numpy(img_uint8.transpose(2, 0, 1)).unsqueeze(0).float() / 127.5 - 1.0
-            return t.cuda() if self.args.cuda else t
+        def _to_lpips(tensor_bchw):
+            return (tensor_bchw.float() * 2.0 - 1.0)
 
         lpips_val = self.lpips_fn(
-            _to_lpips(inpainted_cv2), _to_lpips(clean_cv2)
+            _to_lpips(inpainted_tensor), _to_lpips(clean_tensor)
         ).item()
 
         return dict(psnr=psnr, psnr_masked=psnr_masked, ssim=ssim_val,
