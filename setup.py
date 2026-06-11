@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="dead_leaves_generation_pytorch",
+    name="dead_leaves_generation",
     version="0.1.0",
     packages=find_packages(),
     install_requires=[
@@ -17,6 +17,6 @@ setup(
         'rasterio',
     ],
     python_requires='>=3.7',
-    description="Dead leaves texture generation with PyTorch and GPU support",
+    description="Dead leaves texture generation",
     author="Raphael",
 )
