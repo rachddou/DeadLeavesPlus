@@ -1,6 +1,3 @@
 [submodule "KAIR"]
 	path = KAIR
 	url = https://github.com/cszn/KAIR.git
-[submodule "improved-precision-and-recall-metric"]
-	path = improved-precision-and-recall-metric
-	url = https://github.com/kynkaat/improved-precision-and-recall-metric.git
