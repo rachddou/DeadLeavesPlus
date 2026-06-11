@@ -1,0 +1,89 @@
+\documentclass{article}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{amsmath}
+\usepackage{siunitx}
+\usepackage{caption}
+\begin{document}
+
+\begin{table}[h]
+  \centering
+  \small
+  \begin{tabular}{l r r r r r}
+    \toprule
+    & $0.5$ & $1.625$ & $2.75$ & $3.875$ & $5$ \\
+    \midrule
+    $\Delta(\mathrm{Nat})$ & $+1.36$ & $+6.19$ & $+8.43$ & $+9.89$ & $+10.94$ \\
+    $\Delta(\mathrm{VL})$ & $+1.39$ & $+6.36$ & $+8.67$ & $+10.04$ & $+10.92$ \\
+    $\Delta(\mathrm{VL}) - \Delta(\mathrm{Nat})$ & $+0.03$ & $+0.18$ & $+0.24$ & $+0.15$ & $-0.02$ \\
+    \bottomrule
+  \end{tabular}
+  \caption{Blur (Gaussian $\sigma$). Levels are $\sigma$ values.}
+  \label{tab:inv_blur}
+\end{table}
+
+\begin{table}[h]
+  \centering
+  \small
+  \begin{tabular}{l r r r r}
+    \toprule
+    & $2.5$ & $5$ & $7.5$ & $10$ \\
+    \midrule
+    $\Delta(\mathrm{Nat})$ & $-0.15$ & $-0.58$ & $-1.03$ & $-1.40$ \\
+    $\Delta(\mathrm{VL})$ & $-0.16$ & $-0.58$ & $-1.02$ & $-1.39$ \\
+    $\Delta(\mathrm{VL}) - \Delta(\mathrm{Nat})$ & $-0.01$ & $+0.00$ & $+0.01$ & $+0.01$ \\
+    \bottomrule
+  \end{tabular}
+  \caption{Contrast (S-curve $k$). Levels are $k$ values.}
+  \label{tab:inv_contrast}
+\end{table}
+
+\begin{table}[h]
+  \centering
+  \small
+  \begin{tabular}{l r r r r}
+    \toprule
+    & $45\,\mathrm{°}$ & $90\,\mathrm{°}$ & $135\,\mathrm{°}$ & $180\,\mathrm{°}$ \\
+    \midrule
+    $\Delta(\mathrm{Nat})$ & $-0.10$ & $-0.13$ & $-0.07$ & $-0.11$ \\
+    $\Delta(\mathrm{VL})$ & $-0.07$ & $-0.10$ & $-0.04$ & $-0.07$ \\
+    $\Delta(\mathrm{VL}) - \Delta(\mathrm{Nat})$ & $+0.02$ & $+0.03$ & $+0.03$ & $+0.04$ \\
+    \bottomrule
+  \end{tabular}
+  \caption{Hue shift. Levels are rotation angles in degrees.}
+  \label{tab:inv_hue}
+\end{table}
+
+\begin{table}[h]
+  \centering
+  \small
+  \begin{tabular}{l r r r r}
+    \toprule
+    & $22.5\,\mathrm{°}$ & $45\,\mathrm{°}$ & $67.5\,\mathrm{°}$ & $90\,\mathrm{°}$ \\
+    \midrule
+    $\Delta(\mathrm{Nat})$ & $+0.89$ & $+0.86$ & $+0.88$ & $-0.02$ \\
+    $\Delta(\mathrm{VL})$ & $+1.00$ & $+0.95$ & $+0.99$ & $-0.01$ \\
+    $\Delta(\mathrm{VL}) - \Delta(\mathrm{Nat})$ & $+0.11$ & $+0.09$ & $+0.11$ & $+0.01$ \\
+    \bottomrule
+  \end{tabular}
+  \caption{Rotation. Levels are rotation angles in degrees.}
+  \label{tab:inv_rot}
+\end{table}
+
+\begin{table}[h]
+  \centering
+  \small
+  \begin{tabular}{l r r r r}
+    \toprule
+    & $1.25\,\mathrm{×}$ & $2.5\,\mathrm{×}$ & $3.75\,\mathrm{×}$ & $5\,\mathrm{×}$ \\
+    \midrule
+    $\Delta(\mathrm{Nat})$ & $+0.74$ & $-0.38$ & $-1.10$ & $-1.71$ \\
+    $\Delta(\mathrm{VL})$ & $+0.81$ & $-0.15$ & $-0.82$ & $-1.38$ \\
+    $\Delta(\mathrm{VL}) - \Delta(\mathrm{Nat})$ & $+0.07$ & $+0.23$ & $+0.28$ & $+0.32$ \\
+    \bottomrule
+  \end{tabular}
+  \caption{Scale (downsample factor).}
+  \label{tab:inv_scale}
+\end{table}
+
+\end{document}
