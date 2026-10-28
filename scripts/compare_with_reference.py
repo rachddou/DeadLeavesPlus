@@ -31,8 +31,10 @@ sys.path.insert(0, str(ROOT))
 PRESETS = {
     "disk": dict(rmin=2, rmax=500, shape_type="disk", multiple_shapes=False,
                  use_texture=False, blur_type="None", downscale=True),
+    # lens blur: with gaussian blur the foreground mask is now blurred in float
+    # (the original rounded it back to 0/1), so foreground edges differ on purpose
     "vibrant": dict(rmin=10, rmax=500, shape_type="poly", multiple_shapes=True,
-                    use_texture=True, blur_type="gaussian", downscale=False),
+                    use_texture=True, blur_type="lens", downscale=False),
 }
 
 
@@ -74,7 +76,9 @@ def generate(module, preset, image_dir, size, seed, **kwargs):
     _seed_numba(seed)
     if preset["multiple_shapes"]:
         generator.shape_type = np.random.choice(["poly", "mix"])
-    blur_val = 5.0 * np.random.power(0.5) if preset["blur_type"] == "gaussian" else 0.0
+    blur_val = 0.0
+    if preset["blur_type"] in ("gaussian", "lens"):
+        blur_val = (5.0 if preset["blur_type"] == "gaussian" else 10.0) * np.random.power(0.5)
     t0 = time.perf_counter()
     generator.compose_dead_leaves_depth_of_field(blur_type=preset["blur_type"], blur_val=blur_val)
     generator.postprocess(blur=False, downscale=preset["downscale"])

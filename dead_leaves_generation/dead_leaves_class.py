@@ -545,11 +545,9 @@ class Deadleaves(Textures):
         if blur_type == "gaussian":
             foreground = cv2.GaussianBlur(foreground, (11, 11), sigmaX=blur_val,
                                           borderType=cv2.BORDER_DEFAULT)
-            # fore_mask is a uint8 0/1 image, so the blurred values are rounded
-            # back to 0 or 1: the mask stays binary (its edges are not
-            # softened), as in the original implementation.
-            fore_mask = cv2.GaussianBlur(fore_mask, (11, 11), sigmaX=blur_val,
-                                         borderType=cv2.BORDER_DEFAULT)
+            # blurred in float: a uint8 0/1 mask would be rounded back to 0/1
+            fore_mask = cv2.GaussianBlur(fore_mask.astype(np.float32), (11, 11),
+                                         sigmaX=blur_val, borderType=cv2.BORDER_DEFAULT)
         elif blur_type == "lens":
             foreground = lens_blur(foreground, radius=blur_val, components=2, exposure_gamma=2)
             fore_mask = lens_blur(255 * fore_mask, radius=blur_val, components=2,
