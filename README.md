@@ -83,7 +83,7 @@ post_process: ## depth-of-field and other post-processing
   depth_of_field: True              # composite background/plain/foreground layers
   blur_type: "gaussian"             # "gaussian" | "lens"
   extra_blur: False                 # additional Gaussian blur after DoF compositing
-  downscale: False                  # 2x downsample the final image
+  downscale: True                  # 2x downsample the final image
 
 n_images: 10
 image_size: 512
