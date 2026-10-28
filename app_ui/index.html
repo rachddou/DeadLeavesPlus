@@ -1,0 +1,704 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vibrant Leaves Generator</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --panel: #ffffff; --text: #1f2328; --muted: #6b7076; --line: #e3e1dc;
+    --accent: #2f6f62; --accent-soft: #e2efeb; --track: #e9e7e2; --danger: #b3261e;
+    --tex-1: #d9822b; --tex-2: #3b7dd8; --tex-3: #8a5cc2;
+    --shadow: 0 1px 2px rgba(0,0,0,.06), 0 2px 8px rgba(0,0,0,.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141618; --panel: #1c1f22; --text: #e6e6e3; --muted: #9aa0a6; --line: #2e3236;
+      --accent: #5fb3a1; --accent-soft: #1f3330; --track: #2b2f33; --danger: #f2827a;
+      --shadow: 0 1px 2px rgba(0,0,0,.4);
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { padding: 18px 24px 6px; }
+  h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
+  header p { margin: 2px 0 0; color: var(--muted); }
+  main { display: grid; grid-template-columns: minmax(340px, 400px) 1fr; gap: 20px; padding: 14px 24px 24px; align-items: start; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; padding: 12px 16px; } header { padding: 16px 16px 4px; } }
+
+  aside { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 12px; max-height: calc(100vh - 24px); }
+  .menu { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; min-height: 0; padding: 0 2px 2px; margin: 0 -2px; }
+  @media (max-width: 900px) { aside { position: static; max-height: none; } .menu { overflow: visible; } }
+  section.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; box-shadow: var(--shadow); }
+  section.card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+  .field { margin-top: 12px; }
+  .field:first-of-type { margin-top: 0; }
+  .label { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; font-weight: 500; }
+  .label .value { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+
+  /* icon pickers */
+  .picker { display: grid; gap: 8px; }
+  .picker.shapes { grid-template-columns: repeat(4, 1fr); }
+  .picker.textures { grid-template-columns: repeat(3, 1fr); }
+  .option { appearance: none; border: 1.5px solid var(--line); background: var(--panel); color: var(--text);
+            border-radius: 8px; padding: 6px 4px 5px; cursor: pointer; display: flex; flex-direction: column;
+            align-items: center; gap: 4px; font: inherit; font-size: 11.5px; line-height: 1.2; text-align: center; position: relative; }
+  .option:hover { border-color: var(--muted); }
+  .option[aria-pressed="true"], .option[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); }
+  .option:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .shape-icon { width: 44px; height: 44px; background: currentColor;
+                -webkit-mask: var(--icon) center / contain no-repeat; mask: var(--icon) center / contain no-repeat; }
+  .option[aria-checked="true"] .shape-icon { color: var(--accent); }
+  .texture-icon { width: 100%; aspect-ratio: 1; border-radius: 5px; background: var(--track) center / cover no-repeat; }
+  .option .swatch { position: absolute; top: 4px; right: 4px; width: 10px; height: 10px; border-radius: 50%;
+                    background: var(--c); box-shadow: 0 0 0 2px var(--panel); display: none; }
+  .option[aria-pressed="true"] .swatch { display: block; }
+  .option[aria-pressed="false"] .texture-icon { opacity: .45; filter: grayscale(.6); }
+
+  /* multi-handle sliders */
+  .mslider { position: relative; height: 34px; touch-action: none; user-select: none; }
+  .mslider .track { position: absolute; left: 0; right: 0; top: 13px; height: 8px; border-radius: 4px; background: var(--track); overflow: hidden; cursor: pointer; }
+  .mslider.partition { height: 46px; }
+  .mslider.partition .track { top: 4px; height: 30px; border-radius: 6px; }
+  .mslider .seg { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; justify-content: center;
+                  color: #fff; font-size: 11px; font-weight: 600; white-space: nowrap; overflow: hidden; text-shadow: 0 1px 1px rgba(0,0,0,.35);
+                  padding: 0 9px; /* room for the separators */ }
+  .mslider .handle { position: absolute; top: 7px; width: 20px; height: 20px; margin-left: -10px; border-radius: 50%;
+                     background: var(--panel); border: 2px solid var(--accent); box-shadow: var(--shadow); cursor: grab; padding: 0; }
+  .mslider.partition .handle { top: 0; height: 38px; width: 14px; margin-left: -7px; border-radius: 4px; border-color: var(--text); }
+  .mslider .handle:active { cursor: grabbing; }
+  .mslider .handle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .ticks { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; margin-top: -2px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 2px; font-size: 12px; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
+  .legend i { width: 9px; height: 9px; border-radius: 2px; background: var(--c); display: inline-block; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+
+  /* simple controls */
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .toggle { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; cursor: pointer; }
+  .toggle input { width: 34px; height: 20px; appearance: none; background: var(--track); border-radius: 10px; position: relative; cursor: pointer; flex: none; transition: background .15s; }
+  .toggle input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.3); transition: left .15s; }
+  .toggle input:checked { background: var(--accent); }
+  .toggle input:checked::after { left: 16px; }
+  .toggle input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .segmented { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .segmented button { flex: 1; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 12.5px; padding: 6px 0; cursor: pointer; border-left: 1px solid var(--line); }
+  .segmented button:first-child { border-left: 0; }
+  .segmented button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .segmented button:disabled { opacity: .45; cursor: not-allowed; }
+  input[type=text] { width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--text); font: inherit; font-size: 12.5px; }
+  .disabled { opacity: .45; pointer-events: none; }
+
+  #generate { appearance: none; border: 0; border-radius: 9px; background: var(--accent); color: #fff; font: inherit; font-weight: 600;
+              font-size: 15px; padding: 11px; cursor: pointer; box-shadow: var(--shadow); flex: none; }
+  #generate:hover { filter: brightness(1.07); }
+
+  /* results */
+  .results-head { display: flex; justify-content: space-between; align-items: baseline; margin: 2px 2px 10px; min-height: 22px; }
+  #status { color: var(--muted); font-variant-numeric: tabular-nums; }
+  #error { color: var(--danger); font-weight: 500; }
+  .results { max-width: min(100%, calc(100vh - 230px), 820px); }
+  @media (max-width: 900px) { .results { max-width: none; } }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .slot { aspect-ratio: 1; border-radius: 8px; background: var(--track); overflow: hidden; position: relative; border: 1px solid var(--line); }
+  .slot img { width: 100%; height: 100%; object-fit: cover; display: block; cursor: zoom-in; image-rendering: auto; }
+  .slot.loading::after { content: ""; position: absolute; inset: 0;
+    background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,.18) 50%, transparent 80%); background-size: 200% 100%; animation: shimmer 1.3s infinite linear; }
+  .slot .err { position: absolute; inset: 8px; color: var(--danger); font-size: 11px; overflow: auto; }
+  @keyframes shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+
+  /* full dataset */
+  .dataset { margin-top: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; box-shadow: var(--shadow); }
+  .dataset-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .dataset-row p { margin: 0; color: var(--muted); font-size: 13px; flex: 1 1 240px; }
+  .btn { appearance: none; border: 1.5px solid var(--accent); background: transparent; color: var(--accent); font: inherit; font-weight: 600;
+         border-radius: 8px; padding: 8px 14px; cursor: pointer; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .progress-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; font-variant-numeric: tabular-nums; }
+  .progress { height: 8px; border-radius: 4px; background: var(--track); overflow: hidden; margin-top: 8px; }
+  .progress div { height: 100%; width: 0; background: var(--accent); transition: width .4s; }
+  .link { appearance: none; border: 0; background: none; color: var(--danger); font: inherit; cursor: pointer; padding: 0; text-decoration: underline; }
+  #dataset-result { margin-top: 8px; font-size: 13px; word-break: break-all; }
+  #dataset-result.ok { color: var(--accent); }
+  #dataset-result.bad { color: var(--danger); }
+  dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text); padding: 20px 22px; max-width: min(440px, calc(100vw - 32px)); box-shadow: 0 10px 40px rgba(0,0,0,.25); }
+  dialog::backdrop { background: rgba(0,0,0,.45); }
+  dialog h3 { margin: 0 0 8px; font-size: 17px; }
+  dialog p { margin: 0 0 10px; color: var(--muted); }
+  dialog .note { color: var(--danger); }
+  dialog .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+
+  #lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.82); display: none; align-items: center; justify-content: center; flex-direction: column; gap: 12px; z-index: 10; padding: 20px; }
+  #lightbox.open { display: flex; }
+  #lightbox img { max-width: 100%; max-height: calc(100vh - 90px); border-radius: 6px; image-rendering: pixelated; }
+  #lightbox .bar { display: flex; gap: 10px; }
+  #lightbox a, #lightbox button { color: #fff; background: rgba(255,255,255,.14); border: 0; border-radius: 7px; padding: 7px 14px; font: inherit; cursor: pointer; text-decoration: none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Vibrant Leaves Generator</h1>
+  <p>Choose the parameters, generate a sample of <span id="n-images">9</span> images, then the full dataset.</p>
+</header>
+<main>
+  <aside>
+    <div class="menu">
+    <section class="card">
+      <h2>Shapes</h2>
+      <div class="field">
+        <div class="label">Shape type</div>
+        <div class="picker shapes" id="shape-picker" role="radiogroup" aria-label="Shape type"></div>
+      </div>
+      <div class="field">
+        <div class="label">Radius <span class="value" id="radius-value"></span></div>
+        <div class="mslider" id="radius-slider"></div>
+        <div class="ticks"><span>1 px</span><span>10</span><span>100</span><span>1000 px</span></div>
+      </div>
+      <div class="field">
+        <div class="label">Power-law exponent <span class="value" id="exponent-value"></span></div>
+        <input type="range" id="exponent" min="1.5" max="5" step="0.1">
+        <div class="hint">Higher values give more small shapes.</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Textures</h2>
+      <label class="toggle">Fill large shapes with textures <input type="checkbox" id="texture-enabled"></label>
+      <div class="hint" id="texture-off-hint">Off: large shapes get colour gradients.</div>
+      <div id="texture-controls">
+        <div class="field">
+          <div class="label">Texture types <span class="value">click to add / remove</span></div>
+          <div class="picker textures" id="texture-picker"></div>
+        </div>
+        <div class="field">
+          <div class="label">Share of each type</div>
+          <div class="mslider partition" id="share-slider"></div>
+          <div class="legend" id="share-legend"></div>
+          <div class="hint">Drag the separators to change the proportion of each texture type.</div>
+        </div>
+        <div class="field">
+          <div class="label">1/f slope of the noise <span class="value" id="slope-value"></span></div>
+          <div class="mslider" id="slope-slider"></div>
+          <div class="ticks"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span></div>
+        </div>
+        <label class="toggle">Warp patterns <input type="checkbox" id="apply-warp"></label>
+        <label class="toggle">Perspective <input type="checkbox" id="apply-perspective"></label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Colours</h2>
+      <label class="toggle">Sample colours from natural images <input type="checkbox" id="use-natural"></label>
+      <div class="field" id="image-dir-field">
+        <div class="label">Colour image directory</div>
+        <input type="text" id="image-dir" spellcheck="false">
+      </div>
+      <label class="toggle">Greyscale <input type="checkbox" id="grey"></label>
+    </section>
+
+    <section class="card">
+      <h2>Depth of field &amp; output</h2>
+      <label class="toggle">Depth of field (Gaussian blur) <input type="checkbox" id="dof"></label>
+      <label class="toggle">Extra Gaussian blur <input type="checkbox" id="extra-blur"></label>
+      <label class="toggle">Downscale ×2 <input type="checkbox" id="downscale"></label>
+      <div class="field">
+        <div class="label">Image size <span class="value" id="output-size"></span></div>
+        <div class="segmented" id="image-size"></div>
+      </div>
+    </section>
+    </div>
+
+    <button id="generate">Generate</button>
+  </aside>
+
+  <div class="results">
+    <div class="results-head"><span id="status">Starting…</span><span id="error" role="alert"></span></div>
+    <div class="grid" id="grid"></div>
+
+    <section class="dataset" id="dataset" hidden>
+      <div class="dataset-row" id="dataset-start">
+        <p>Happy with the sample? Generate the full dataset with the same parameters.</p>
+        <button class="btn primary" id="dataset-button">Generate full dataset</button>
+      </div>
+      <div id="dataset-progress" hidden>
+        <div class="progress-head"><span id="dataset-text"></span><button class="link" id="dataset-cancel">Cancel</button></div>
+        <div class="progress"><div id="dataset-bar"></div></div>
+      </div>
+      <div id="dataset-result" role="status"></div>
+    </section>
+  </div>
+</main>
+
+<dialog id="confirm" aria-labelledby="confirm-title">
+  <h3 id="confirm-title">Generate the full dataset?</h3>
+  <p id="confirm-text"></p>
+  <p class="note" id="confirm-note" hidden>The parameters were changed after this sample was generated: the dataset uses the parameters of the sample shown. Generate a new sample first to use the current ones.</p>
+  <div class="actions">
+    <button class="btn" id="confirm-no" value="no">No</button>
+    <button class="btn primary" id="confirm-yes" value="yes">Yes, generate</button>
+  </div>
+</dialog>
+
+<div id="lightbox" role="dialog" aria-modal="true" aria-label="Image preview">
+  <img alt="">
+  <div class="bar"><a id="download" download>Download PNG</a><button id="close">Close</button></div>
+</div>
+
+<script>
+const SHAPE_LABELS = { poly: "Polygon", disk: "Disk", rectangle: "Rectangle", mix: "Mix" };
+const SHAPE_HINTS = {
+  poly: "Random smooth concave polygons", disk: "Disks", rectangle: "Rotated rectangles",
+  mix: "Polygons, disks and rectangles",
+};
+const TEXTURE_LABELS = { sin: "Sinusoids", freq_noise: "1/f noise", texture_mixes: "Mixes" };
+const TEXTURE_HINTS = {
+  sin: "Two colours mixed by thresholded sinusoids",
+  freq_noise: "Coloured noise with a 1/f spectrum",
+  texture_mixes: "Two 1/f noises mixed by sinusoids (or a grid)",
+};
+const TEXTURE_COLORS = ["var(--tex-1)", "var(--tex-2)", "var(--tex-3)"];
+
+const $ = (id) => document.getElementById(id);
+const state = {};
+let TEXTURE_TYPES = [];
+
+/* ---------- multi-handle slider ----------
+ * values: sorted handle positions; segments (optional): one style per interval
+ * between [min, handles..., max]. */
+class MultiSlider {
+  constructor(el, { min, max, step, values, log = false, minGap = 0, partition = false, onChange }) {
+    Object.assign(this, { el, min, max, step, log, minGap, partition, onChange });
+    el.classList.toggle("partition", partition);
+    el.innerHTML = '<div class="track"></div>';
+    this.track = el.firstChild;
+    this.track.addEventListener("pointerdown", (e) => this.onTrack(e));
+    this.setValues(values);
+  }
+  toPos(v) {
+    if (!this.log) return (v - this.min) / (this.max - this.min);
+    return Math.log(v / this.min) / Math.log(this.max / this.min);
+  }
+  fromPos(p) {
+    p = Math.min(1, Math.max(0, p));
+    let v = this.log ? this.min * Math.pow(this.max / this.min, p) : this.min + p * (this.max - this.min);
+    return Math.round(v / this.step) * this.step;
+  }
+  setValues(values, segments) {
+    this.values = values.slice();
+    if (segments) this.segments = segments;
+    this.render();
+  }
+  render() {
+    const edges = [this.min, ...this.values, this.max];
+    this.track.querySelectorAll(".seg").forEach((s) => s.remove());
+    (this.segments || [null, {}, null]).forEach((seg, i) => {
+      if (!seg) return;
+      const left = this.toPos(edges[i]), right = this.toPos(edges[i + 1]);
+      const div = document.createElement("div");
+      div.className = "seg";
+      div.style.left = `${left * 100}%`;
+      div.style.width = `${(right - left) * 100}%`;
+      div.style.background = seg.color || "var(--accent)";
+      if (seg.title) div.title = seg.title;
+      this.track.appendChild(div);
+      // longest label that fits: "name NN%", then "NN%", then nothing
+      for (const text of [seg.label, seg.short, ""]) {
+        if (text === undefined) continue;
+        div.textContent = text;
+        if (div.scrollWidth <= div.clientWidth) break;
+      }
+    });
+    // handles are only re-created when their number changes, so that a drag
+    // in progress keeps its element (and pointer capture)
+    if (!this.handles || this.handles.length !== this.values.length) {
+      (this.handles || []).forEach((h) => h.remove());
+      this.handles = this.values.map((v, i) => {
+        const h = document.createElement("button");
+        h.className = "handle";
+        h.type = "button";
+        h.setAttribute("role", "slider");
+        h.setAttribute("aria-valuemin", this.min);
+        h.setAttribute("aria-valuemax", this.max);
+        h.addEventListener("pointerdown", (e) => this.startDrag(e, i));
+        h.addEventListener("keydown", (e) => this.onKey(e, i));
+        this.el.appendChild(h);
+        return h;
+      });
+    }
+    this.handles.forEach((h, i) => {
+      h.style.left = `${this.toPos(this.values[i]) * 100}%`;
+      h.setAttribute("aria-valuenow", this.values[i]);
+    });
+  }
+  bounds(i) {
+    const lo = i === 0 ? this.min : this.values[i - 1] + this.minGap;
+    const hi = i === this.values.length - 1 ? this.max : this.values[i + 1] - this.minGap;
+    return [lo, hi];
+  }
+  move(i, v) {
+    const [lo, hi] = this.bounds(i);
+    v = Math.min(hi, Math.max(lo, v));
+    if (v === this.values[i]) return;
+    this.values[i] = +v.toFixed(6);
+    this.onChange(this.values.slice());
+  }
+  posFromEvent(e) {
+    const r = this.track.getBoundingClientRect();
+    return (e.clientX - r.left) / r.width;
+  }
+  startDrag(e, i) {
+    e.preventDefault();
+    e.stopPropagation();
+    const handle = e.currentTarget;
+    handle.setPointerCapture(e.pointerId);
+    const onMove = (ev) => this.move(i, this.fromPos(this.posFromEvent(ev)));
+    const onUp = () => { handle.removeEventListener("pointermove", onMove); handle.removeEventListener("pointerup", onUp); };
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onUp);
+  }
+  onTrack(e) {
+    // move the closest handle to the click
+    const v = this.fromPos(this.posFromEvent(e));
+    let best = 0;
+    this.values.forEach((x, i) => { if (Math.abs(this.toPos(x) - this.toPos(v)) < Math.abs(this.toPos(this.values[best]) - this.toPos(v))) best = i; });
+    this.move(best, v);
+  }
+  onKey(e, i) {
+    const delta = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1 }[e.key];
+    if (!delta) return;
+    e.preventDefault();
+    const v = this.fromPos(this.toPos(this.values[i]) + delta * 0.01);
+    this.move(i, v === this.values[i] ? this.values[i] + delta * this.step : v);
+  }
+}
+
+/* ---------- texture shares ---------- */
+const activeTextures = () => TEXTURE_TYPES.filter((t) => state.texture_shares[t] > 0);
+const textureColor = (t) => TEXTURE_COLORS[TEXTURE_TYPES.indexOf(t)];
+let shareSlider;
+
+function renderShares() {
+  const types = activeTextures();
+  const cuts = [];
+  let acc = 0;
+  types.slice(0, -1).forEach((t) => { acc += state.texture_shares[t]; cuts.push(acc); });
+  const segments = types.map((t) => ({
+    color: textureColor(t),
+    label: `${TEXTURE_LABELS[t]} ${Math.round(state.texture_shares[t] * 100)}%`,
+    short: `${Math.round(state.texture_shares[t] * 100)}%`,
+    title: TEXTURE_LABELS[t],
+  }));
+  shareSlider.setValues(cuts, segments);
+  $("share-legend").innerHTML = types.length
+    ? types.map((t) => `<span style="--c:${textureColor(t)}"><i></i>${TEXTURE_LABELS[t]} ${(state.texture_shares[t] * 100).toFixed(0)}%</span>`).join("")
+    : '<span style="color:var(--danger)">Select at least one texture type.</span>';
+  document.querySelectorAll("#texture-picker .option").forEach((b) => b.setAttribute("aria-pressed", state.texture_shares[b.dataset.type] > 0));
+}
+
+function onSharesDragged(cuts) {
+  const types = activeTextures();
+  const edges = [0, ...cuts, 1];
+  types.forEach((t, i) => { state.texture_shares[t] = +(edges[i + 1] - edges[i]).toFixed(4); });
+  renderShares();
+}
+
+function toggleTexture(t) {
+  const shares = state.texture_shares;
+  if (shares[t] > 0) {
+    // removed: its share goes to the others, proportionally
+    shares[t] = 0;
+    const rest = activeTextures();
+    const total = rest.reduce((s, x) => s + shares[x], 0);
+    rest.forEach((x) => { shares[x] = total > 0 ? shares[x] / total : 1 / rest.length; });
+  } else {
+    // added: gets an equal share, taken proportionally from the others
+    const n = activeTextures().length + 1;
+    activeTextures().forEach((x) => { shares[x] *= (n - 1) / n; });
+    shares[t] = 1 / n;
+  }
+  renderShares();
+}
+
+/* ---------- menu ---------- */
+function picker(container, items, { multi, icon, onClick }) {
+  container.innerHTML = "";
+  items.forEach((item) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "option";
+    b.dataset.type = item.key;
+    b.title = item.hint;
+    if (!multi) b.setAttribute("role", "radio");
+    b.innerHTML = icon(item) + `<span>${item.label}</span>`;
+    b.addEventListener("click", () => onClick(item.key));
+    container.appendChild(b);
+  });
+}
+
+function segmented(container, options, value, onPick) {
+  container.innerHTML = "";
+  options.forEach((o) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = o.label;
+    b.dataset.value = o.value;
+    b.setAttribute("aria-pressed", String(o.value) === String(value));
+    b.addEventListener("click", () => {
+      container.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+      onPick(o.value);
+    });
+    container.appendChild(b);
+  });
+}
+
+function bindToggle(id, key, after) {
+  const el = $(id);
+  el.checked = !!state[key];
+  el.addEventListener("change", () => { state[key] = el.checked; after && after(); });
+}
+
+function refreshDependent() {
+  $("texture-controls").classList.toggle("disabled", !state.texture_enabled);
+  $("texture-off-hint").style.display = state.texture_enabled ? "none" : "block";
+  $("image-dir-field").classList.toggle("disabled", !state.use_natural_images);
+  const size = state.downscale ? state.image_size / 2 : state.image_size;
+  $("output-size").textContent = `output ${size}×${size} px`;
+}
+
+function buildMenu(info) {
+  TEXTURE_TYPES = info.texture_types;
+  Object.assign(state, info.defaults);
+  for (const t of TEXTURE_TYPES) state.texture_shares[t] = state.texture_shares[t] || 0;
+  $("n-images").textContent = info.n_images;
+
+  picker($("shape-picker"), info.shape_types.map((k) => ({ key: k, label: SHAPE_LABELS[k], hint: SHAPE_HINTS[k], icon: info.icons.shapes[k] })), {
+    icon: (it) => `<span class="shape-icon" style="--icon:url(${it.icon})"></span>`,
+    onClick: (k) => { state.shape_type = k; markShape(); },
+  });
+  const markShape = () => document.querySelectorAll("#shape-picker .option").forEach((b) => b.setAttribute("aria-checked", b.dataset.type === state.shape_type));
+  markShape();
+
+  const radius = new MultiSlider($("radius-slider"), {
+    min: 1, max: 1000, step: 1, log: true, minGap: 1, values: [state.radius_min, state.radius_max],
+    onChange: ([a, b]) => { state.radius_min = a; state.radius_max = b; showRadius(); radius.setValues([a, b]); },
+  });
+  const showRadius = () => ($("radius-value").textContent = `${state.radius_min} – ${state.radius_max} px`);
+  showRadius();
+
+  const exponent = $("exponent");
+  exponent.value = state.power_law_exponent;
+  const showExponent = () => ($("exponent-value").textContent = (+state.power_law_exponent).toFixed(1));
+  exponent.addEventListener("input", () => { state.power_law_exponent = +exponent.value; showExponent(); });
+  showExponent();
+
+  bindToggle("texture-enabled", "texture_enabled", refreshDependent);
+  picker($("texture-picker"), TEXTURE_TYPES.map((k) => ({ key: k, label: TEXTURE_LABELS[k], hint: TEXTURE_HINTS[k], icon: info.icons.textures[k] })), {
+    multi: true,
+    icon: (it) => `<span class="swatch" style="--c:${textureColor(it.key)}"></span><span class="texture-icon" style="background-image:url(${it.icon})"></span>`,
+    onClick: toggleTexture,
+  });
+  shareSlider = new MultiSlider($("share-slider"), { min: 0, max: 1, step: 0.01, minGap: 0.01, partition: true, values: [], onChange: onSharesDragged });
+  renderShares();
+
+  const slope = new MultiSlider($("slope-slider"), {
+    min: 0, max: 4, step: 0.05, minGap: 0.05, values: [state.slope_min, state.slope_max],
+    onChange: ([a, b]) => { state.slope_min = a; state.slope_max = b; showSlope(); slope.setValues([a, b]); },
+  });
+  const showSlope = () => ($("slope-value").textContent = `${(+state.slope_min).toFixed(2)} – ${(+state.slope_max).toFixed(2)}`);
+  showSlope();
+  bindToggle("apply-warp", "apply_warp");
+  bindToggle("apply-perspective", "apply_perspective");
+
+  bindToggle("use-natural", "use_natural_images", refreshDependent);
+  $("image-dir").value = state.image_dir;
+  $("image-dir").addEventListener("input", (e) => (state.image_dir = e.target.value));
+  bindToggle("grey", "grey");
+
+  bindToggle("dof", "depth_of_field", refreshDependent);
+  bindToggle("extra-blur", "extra_blur");
+  bindToggle("downscale", "downscale", refreshDependent);
+  segmented($("image-size"), info.image_sizes.map((s) => ({ value: s, label: String(s) })), state.image_size, (v) => { state.image_size = v; refreshDependent(); });
+  refreshDependent();
+
+  const grid = $("grid");
+  grid.innerHTML = "";
+  for (let i = 0; i < info.n_images; i++) grid.insertAdjacentHTML("beforeend", '<div class="slot"></div>');
+}
+
+/* ---------- generation ---------- */
+let controller = null;
+let sampleParams = null;   // parameters of the sample shown (used for the dataset)
+
+async function generate() {
+  if (controller) controller.abort();
+  controller = new AbortController();
+  const slots = [...document.querySelectorAll(".slot")];
+  $("error").textContent = "";
+  if (state.texture_enabled && !activeTextures().length) {
+    $("error").textContent = "Select at least one texture type.";
+    return;
+  }
+  slots.forEach((s) => { s.innerHTML = ""; s.classList.add("loading"); });
+  sampleParams = null;
+  $("dataset-start").hidden = true;
+  const params = JSON.parse(JSON.stringify(state));
+  let failed = 0;
+  const t0 = performance.now();
+  let done = 0;
+  const status = () => ($("status").textContent = done < slots.length
+    ? `Generating… ${done}/${slots.length} · ${((performance.now() - t0) / 1000).toFixed(1)} s`
+    : `${slots.length} images in ${((performance.now() - t0) / 1000).toFixed(1)} s`);
+  status();
+  const timer = setInterval(status, 200);
+  try {
+    const response = await fetch("/api/generate", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(params), signal: controller.signal,
+    });
+    if (!response.ok) {
+      const { error } = await response.json();
+      throw new Error(error || response.statusText);
+    }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    for (;;) {
+      const { value, done: finished } = await reader.read();
+      if (finished) break;
+      buffer += decoder.decode(value, { stream: true });
+      let nl;
+      while ((nl = buffer.indexOf("\n")) >= 0) {
+        const line = JSON.parse(buffer.slice(0, nl));
+        buffer = buffer.slice(nl + 1);
+        const slot = slots[line.index];
+        slot.classList.remove("loading");
+        if (line.image) {
+          const img = new Image();
+          img.src = line.image;
+          img.alt = `Sample image ${line.index + 1}`;
+          img.addEventListener("click", () => openLightbox(line.image, line.index));
+          slot.appendChild(img);
+        } else {
+          slot.innerHTML = `<div class="err">${line.error}</div>`;
+          failed++;
+        }
+        done++;
+        status();
+      }
+    }
+    if (done === slots.length && !failed) {
+      sampleParams = params;
+      showDataset();
+    }
+  } catch (err) {
+    if (err.name === "AbortError") return;
+    slots.forEach((s) => s.classList.remove("loading"));
+    $("error").textContent = err.message;
+    $("status").textContent = "";
+  } finally {
+    clearInterval(timer);
+  }
+}
+
+function openLightbox(src, index) {
+  const box = $("lightbox");
+  box.querySelector("img").src = src;
+  $("download").href = src;
+  $("download").download = `dead_leaves_${index + 1}.png`;
+  box.classList.add("open");
+}
+$("close").addEventListener("click", () => $("lightbox").classList.remove("open"));
+$("lightbox").addEventListener("click", (e) => { if (e.target.id === "lightbox") e.currentTarget.classList.remove("open"); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") $("lightbox").classList.remove("open"); });
+$("generate").addEventListener("click", generate);
+
+/* ---------- full dataset ---------- */
+let N_DATASET = 1000;
+let DATASET_ROOT = "datasets";
+let pollTimer = null;
+let lastJob = null;
+const fmtTime = (s) => (s >= 3600 ? `${Math.floor(s / 3600)} h ` : "") + `${Math.floor(s / 60) % 60} min ${String(Math.floor(s % 60)).padStart(2, "0")} s`;
+
+function showDataset(job = lastJob) {
+  lastJob = job;
+  const running = job && job.state === "running";
+  $("dataset").hidden = !(sampleParams || job);
+  $("dataset-start").hidden = running || !sampleParams;
+  $("dataset-progress").hidden = !running;
+  if (!job) return;
+  const pct = (100 * job.done) / job.total;
+  $("dataset-bar").style.width = `${pct}%`;
+  const eta = job.done ? (job.elapsed / job.done) * (job.total - job.done) : null;
+  $("dataset-text").textContent = `${job.done} / ${job.total} images · ${fmtTime(job.elapsed)}` + (eta !== null && running ? ` · about ${fmtTime(eta)} left` : "");
+  const result = $("dataset-result");
+  result.className = "";
+  if (running) {
+    result.textContent = `Saving to ${job.out_dir}`;
+  } else if (job.state === "done") {
+    result.className = job.errors ? "bad" : "ok";
+    result.textContent = `${job.done} images saved to ${job.out_dir} in ${fmtTime(job.elapsed)}` + (job.errors ? ` (${job.errors} failed: ${job.last_error})` : "");
+  } else if (job.state === "cancelled") {
+    result.className = "bad";
+    result.textContent = `Cancelled: ${job.done} images saved to ${job.out_dir}`;
+  }
+}
+
+async function pollDataset() {
+  clearTimeout(pollTimer);
+  try {
+    const job = await (await fetch("/api/dataset")).json();
+    if (job.state === "idle") return showDataset(null);
+    showDataset(job);
+    if (job.state === "running") pollTimer = setTimeout(pollDataset, 1000);
+  } catch (err) {
+    pollTimer = setTimeout(pollDataset, 3000);
+  }
+}
+
+$("dataset-button").addEventListener("click", () => {
+  $("confirm-text").textContent = `This generates ${N_DATASET} images with the parameters of the sample shown and saves them in a new folder of ${DATASET_ROOT}/. It can take several minutes. Do you want to continue?`;
+  $("confirm-note").hidden = JSON.stringify(state) === JSON.stringify(sampleParams);
+  $("confirm").showModal();
+  $("confirm-no").focus();
+});
+$("confirm-no").addEventListener("click", () => $("confirm").close());
+$("confirm-yes").addEventListener("click", async () => {
+  $("confirm").close();
+  $("dataset-result").textContent = "";
+  try {
+    const response = await fetch("/api/dataset", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sampleParams),
+    });
+    const job = await response.json();
+    if (!response.ok) throw new Error(job.error || response.statusText);
+    showDataset(job);
+    pollDataset();
+  } catch (err) {
+    $("dataset-result").className = "bad";
+    $("dataset-result").textContent = err.message;
+  }
+});
+$("dataset-cancel").addEventListener("click", async () => {
+  await fetch("/api/dataset/cancel", { method: "POST" });
+  pollDataset();
+});
+
+fetch("/api/state")
+  .then((r) => r.json())
+  .then((info) => {
+    N_DATASET = info.n_dataset;
+    DATASET_ROOT = info.dataset_root;
+    $("dataset-button").textContent = `Generate full dataset (${N_DATASET} images)`;
+    buildMenu(info);
+    generate();
+    pollDataset();   // a dataset may still be running from before a reload
+  })
+  .catch((err) => { $("status").textContent = ""; $("error").textContent = `Could not reach the app server: ${err.message}`; });
+</script>
+</body>
+</html>

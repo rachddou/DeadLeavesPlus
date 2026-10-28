@@ -99,6 +99,16 @@ python image_generation.py --multirun task=1,2,3,4 hydra.launcher.n_jobs=4
 
 The first run compiles the numba kernels and caches them (a few seconds); run one short generation (`n_images=1`) before launching many jobs at once so that they do not all compile them.
 
+#### Interactive app: Vibrant Leaves Generator
+
+`app.py` is a small web app to explore the parameters and build a dataset. Pick the shape type and the texture types from icons, set the proportion of each texture type on a [0, 1] bar, adjust the radius range, depth of field, image size..., and generate a sample of 9 images. Once you are happy with the sample, "Generate full dataset" (after a confirmation) generates 1000 images with the same parameters.
+
+```
+python app.py
+```
+
+Then open http://127.0.0.1:7860 in a browser. The menu starts from `config/default.yaml`, and images are generated in parallel (`--workers N`, 10 by default) with the same code as `image_generation.py`. Datasets are saved in a new folder `datasets/dataset_<date>_<time>/` (`--dataset-dir` to change it), together with a `config.yaml` of the parameters, which can be reused with `python image_generation.py --config-path <dataset folder> --config-name config`. The generation goes on if the page is closed, and its progress shows again when the page is reopened. To run the app on a remote server, start it there and forward the port: `ssh -L 7860:localhost:7860 <server>`.
+
 #### How the generator works
 
 An image is the composition of three layers of "leaves" (`Deadleaves.compose_dead_leaves_depth_of_field`): a blurred background, an in-focus middle layer and a blurred foreground. Each layer is a stack of shapes (polygons, disks or rectangles) whose radii follow a power law between `radius_min` and `radius_max` (`Deadleaves.generate_stack`). Shapes are placed front to back: each new shape only paints the pixels that are not covered yet. Small shapes get a flat colour picked in a source image; larger ones get a colour gradient or a texture (sinusoidal patterns, coloured 1/f noise or mixes of both, optionally warped and seen in perspective).

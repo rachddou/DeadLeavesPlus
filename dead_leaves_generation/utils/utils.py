@@ -1,8 +1,18 @@
+import random
+
 import cv2
 import numpy as np
 
 from dead_leaves_generation.utils.kernels import (
-    mix_lab_to_rgb_u8, normalized_logistic_inplace, rgb_to_lab)
+    mix_lab_to_rgb_u8, normalized_logistic_inplace, rgb_to_lab, seed_numba)
+
+
+def set_seed(seed):
+    """Seeds every random generator used for generation: numpy's, python's
+    random module and numba's."""
+    np.random.seed(seed)
+    random.seed(seed)
+    seed_numba(seed)
 
 
 ## rotation function using OpenCV
