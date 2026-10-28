@@ -1,11 +1,11 @@
 import numpy as np
 import rasterio.features
-from skimage.filters import gaussian
 import shapely
 import math
 import random
 import cv2
 
+from dead_leaves_generation.utils.kernels import fill_polygon, gaussian_threshold
 
 
 def rotate_image(img, angle):
@@ -31,7 +31,6 @@ def make_rectangle_mask(radius):
 
     angle = random.uniform(0,180)
     mask = np.bool_(rotate_image(mask,angle))
-    mask = np.bool_(mask)
     h,w = mask.shape
     h_odd = 2*(h//2)-1
     w_odd = 2*(w//2)-1
@@ -48,10 +47,35 @@ def sample_points_circle(n,radius):
     """
     distance_to_center = np.random.randint(0,radius,n)
     angle = np.random.uniform(-np.pi,np.pi,n)
-    
-    x = np.array([radius+distance_to_center[i]*np.cos(angle[i]) for i in range(n)])
-    y = np.array([radius+distance_to_center[i]*np.sin(angle[i]) for i in range(n)])
+
+    x = radius + distance_to_center*np.cos(angle)
+    y = radius + distance_to_center*np.sin(angle)
     return(np.stack([x,y],axis = -1))
+
+
+def rasterize_polygon(geom, size):
+    """Same output as ``rasterio.features.rasterize([geom], out_shape=(size, size))``
+    for (multi)polygons, using a numba scanline fill instead of GDAL."""
+    if geom.geom_type in ("Polygon", "MultiPolygon"):
+        coords = shapely.get_coordinates(geom)
+        if geom.geom_type == "Polygon" and shapely.get_num_interior_rings(geom) == 0:
+            ring_offsets = np.array([0, len(coords)], dtype=np.int64)
+        else:
+            ring_sizes = shapely.get_num_coordinates(shapely.get_rings(geom))
+            ring_offsets = np.concatenate([[0], np.cumsum(ring_sizes)]).astype(np.int64)
+    else:
+        # degenerate hulls (points / lines) keep GDAL's line burning rules
+        return rasterio.features.rasterize([geom], out_shape=(size, size)).astype(np.bool_)
+    return fill_polygon(np.ascontiguousarray(coords[:, 0]), np.ascontiguousarray(coords[:, 1]),
+                        ring_offsets, size, size)
+
+
+def _gaussian_kernel(sigma, truncate=4.0):
+    """1D kernel used by scipy.ndimage.gaussian_filter (and thus skimage's gaussian)."""
+    radius = int(truncate * float(sigma) + 0.5)
+    x = np.arange(-radius, radius + 1)
+    phi_x = np.exp(-0.5 / (sigma * sigma) * x ** 2)
+    return phi_x / phi_x.sum()
 
 
 def binary_polygon_generator(size, n = 100, concavity = 0.3, allow_holes = True, smoothing = True):
@@ -67,20 +91,17 @@ def binary_polygon_generator(size, n = 100, concavity = 0.3, allow_holes = True,
 
     coords = sample_points_circle(n,size//2)
 
-    points = shapely.MultiPoint([(coords[k,0],coords[k,1]) for k in range(n)])
+    points = shapely.multipoints(coords)
 
     concave_hull = shapely.concave_hull(points, ratio=concavity, allow_holes=allow_holes)
 
-    img = rasterio.features.rasterize([concave_hull], out_shape=(size, size)).astype(np.bool_)
-    
+    img = rasterize_polygon(concave_hull, size)
+
     if smoothing:
         min_blur = max(0.5,2*(size/200))
         max_blur = min(10,5*(size/200))
         blur_val = np.random.uniform(min_blur,max_blur)
-        img = gaussian(img.astype(np.float32),blur_val)
-        res = np.zeros(img.shape,dtype=np.bool_)
-        res[img>0.5] = True
-        return(res)
+        # skimage.filters.gaussian(img.astype(np.float32), blur_val) > 0.5
+        return gaussian_threshold(img, _gaussian_kernel(blur_val), 0.5)
     else:
         return(img)
-    

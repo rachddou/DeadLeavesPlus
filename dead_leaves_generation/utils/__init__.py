@@ -2,21 +2,19 @@
 
 # Import key functions for easier access
 from .utils import (
-    rotate_CV, normalize, thresholding,
+    rotate_cv, normalize,
     theoretical_number_disks, linear_color_gradient,
-    logistic, normalized_logistic, sigmoid
 )
-from .colored_noise import sample_color_noise, sample_magnitude
-from .texture_generation import bilevelTextureMixer, pattern_patch_two_colors
+from .colored_noise import sample_color_noise
+from .texture_generation import bilevel_texture_mixer, sample_slope
 from .interpolation_maps import sample_grid, sample_sinusoid, sample_interpolation_map
 from .geometric_perturbation import generate_perturbation
 
 __all__ = [
-    'rotate_CV', 'normalize', 'thresholding',
+    'rotate_cv', 'normalize',
     'theoretical_number_disks', 'linear_color_gradient',
-    'logistic', 'normalized_logistic', 'sigmoid',
-    'sample_color_noise', 'sample_magnitude',
-    'bilevelTextureMixer', 'pattern_patch_two_colors',
+    'sample_color_noise',
+    'bilevel_texture_mixer', 'sample_slope',
     'sample_grid', 'sample_sinusoid', 'sample_interpolation_map',
     'generate_perturbation'
 ]
