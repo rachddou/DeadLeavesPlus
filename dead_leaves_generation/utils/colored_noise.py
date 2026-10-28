@@ -1,4 +1,15 @@
 import numpy as np
+from scipy import fft as sfft
+
+from dead_leaves_generation.utils.kernels import gather_planes, impose_magnitude, planes_to_uint8
+
+
+def _magnitude_1d(resolution, slope):
+    """|f|^slope along one axis of the fftshift-ed frequency grid of sample_magnitude."""
+    k = np.arange(resolution)
+    f = ((k - resolution // 2) % resolution) - resolution / 2
+    return np.abs(f / resolution) ** slope
+
 
 def sample_magnitude(resolution,slope):
     """function that creates a magnitude map for the frequency domain in 1/f^slope
@@ -7,17 +18,12 @@ def sample_magnitude(resolution,slope):
         resolution (int): size of the texture image
         slope (float): slope of the magnitude map in the log domain
     """
-    fx, fy = np.meshgrid(range(resolution), range(resolution))
-
-    fx = fx - resolution / 2
-    fy = fy - resolution / 2
-    
-    fr = 1e-16 + np.abs(fx / resolution) ** slope +  np.abs(fy / resolution) ** slope
-
-    magnitude = 1 / np.fft.fftshift(fr)
+    g = _magnitude_1d(resolution, slope)
+    magnitude = 1 / (1e-16 + g[None, :] + g[:, None])
     magnitude[0,0] = 0
     magnitude = np.tile(magnitude[:,:,None], (1,1,3))
     return(magnitude)
+
 
 def sample_color_noise(image,width,slope):
     """function that creates colored noise with a given slope in the frequency domain from the color histogram of an existing image
@@ -25,7 +31,7 @@ def sample_color_noise(image,width,slope):
     Args:
         image (_type_): source image for color histogram
         width (_type_): size of the texture image
-        slope (_type_): slope of the magnitude map in the log domain 
+        slope (_type_): slope of the magnitude map in the log domain
     """
     h,w = image.shape[0],image.shape[1]
     p = 50
@@ -33,28 +39,17 @@ def sample_color_noise(image,width,slope):
     xx,yy = np.random.randint(0,h-p),np.random.randint(0,w-p)
     image = image[xx:xx+p,yy:yy+p]
     image = image.reshape((p*p,3))
-    index =np.random.choice(np.arange(0,p*p),replace= True,size = width*width)
-    
+    # same random stream as np.random.choice(np.arange(p*p), replace=True, size=...)
+    index = np.random.randint(0, p*p, size=width*width)
 
-    image = image[index]
-    image = image.reshape((width,width,3)).astype(np.float32)
-    magnitude = sample_magnitude(width,slope)
-    
-    for c in range(3):
-        x = image[...,c]
+    planes = gather_planes(np.ascontiguousarray(image), index, width)
+    m = planes.mean(axis=(1, 2), dtype=np.float32)
+    s = planes.std(axis=(1, 2), dtype=np.float32)
 
-        m = np.mean(x)
-        s = np.std(x)
+    # real(ifft2(magnitude * exp(i * angle(fft2(x - m))))) computed with real FFTs
+    spectrum = sfft.rfft2(planes - m[:, None, None], axes=(1, 2))
+    g = _magnitude_1d(width, slope)
+    impose_magnitude(spectrum, g, g[(-np.arange(width)) % width])
+    y = sfft.irfft2(spectrum, s=(width, width), axes=(1, 2), overwrite_x=True)
 
-        fft_img = np.fft.fft2(x - m)
-        fft_phase = np.angle(fft_img)
-
-        fft_imposed = magnitude[...,c] * np.exp(1j * fft_phase)
-        y = np.real(np.fft.ifft2(fft_imposed))
-
-        y = y - y.mean()
-        y = y / np.std(y) * s + m
-
-        image[...,c] = y
-    image = np.uint8(np.clip(image,0,255))
-    return(image)
+    return planes_to_uint8(y, y.mean(axis=(1, 2)), y.std(axis=(1, 2)), s, m)

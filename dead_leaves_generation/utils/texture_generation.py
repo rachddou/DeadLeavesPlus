@@ -3,6 +3,7 @@ from skimage.color import rgb2lab, lab2rgb
 from dead_leaves_generation.utils.interpolation_maps import sample_grid, sample_sinusoid, sample_interpolation_map
 from dead_leaves_generation.utils.geometric_perturbation import generate_perturbation
 from dead_leaves_generation.utils.colored_noise import sample_color_noise
+from dead_leaves_generation.utils.kernels import mix_lab_to_rgb_u8, rgb_to_lab
 
 
 def _sample_slope_from_ranges(slope_range):
@@ -85,17 +86,10 @@ def bilevelTextureMixer(color_source_1=None, color_source_2=None,
     interpolation_map = sample_interpolation_map(
         mixing_types=mixing_types, width=width, thresh_val=thresh_val, warp=warp)
 
-    texture_map_1 = texture_map_1 / 255.
-    texture_map_2 = texture_map_2 / 255.
-    t1 = rgb2lab(texture_map_1)
-    t2 = rgb2lab(texture_map_2)
-
-    r = interpolation_map * (t2[..., 0] - t1[..., 0]) + t1[..., 0]
-    g = interpolation_map * (t2[..., 1] - t1[..., 1]) + t1[..., 1]
-    b = interpolation_map * (t2[..., 2] - t1[..., 2]) + t1[..., 2]
-
-    res_image = lab2rgb(np.stack([r, g, b], axis=-1))
-    return np.uint8(res_image * 255)
+    # fused rgb2lab(texture / 255.) -> lab interpolation -> uint8(255 * lab2rgb)
+    t1 = rgb_to_lab(texture_map_1)
+    t2 = rgb_to_lab(texture_map_2)
+    return mix_lab_to_rgb_u8(interpolation_map, t1, t2)
 
 
 def pattern_patch_two_colors(color_1, color_2, width=100, period=None,

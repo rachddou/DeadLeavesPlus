@@ -1,7 +1,8 @@
 import numpy as np
 import cv2
 from numba import njit
- 
+
+from dead_leaves_generation.utils.kernels import warp_bilinear_clipped
 
 
 def generate_vector_field(shape):
@@ -20,7 +21,7 @@ def generate_vector_field(shape):
     if type == "athmos":
         u = np.random.normal(0.,1.,(shape,shape))
         v = np.random.normal(0.,1.,(shape,shape))
-        
+
         s = np.random.randint(10,20)
         t = np.random.randint(5,s//2+1)
         u = cv2.GaussianBlur(u,(61,61),sigmaX = s, borderType = cv2.BORDER_DEFAULT)
@@ -90,13 +91,10 @@ def generate_perturbation(x):
     """
     shape = x.shape[0]
     u,v = generate_vector_field(shape)
-    xx, yy = np.meshgrid(np.arange(shape), np.arange(shape))  # cartesian indexing
-    res = np.zeros(x.shape)
+    # fused bilinear_interpolate(x, u + xx, v + yy) + np.min(x)
+    return warp_bilinear_clipped(np.ascontiguousarray(x, dtype=np.float64), u, v)
 
-    res[:,:] = bilinear_interpolate(x[:,:], u+xx, v+yy)+np.min(x)
-    return(res)
-
-@njit
+@njit(cache=True)
 def generate_triangular_pattern(shape,T):
     tmp = shape/T
     n_period = int(tmp)

@@ -1,8 +1,7 @@
 import logging
 import os
 import random
-from pathlib import Path
-from time import time
+from functools import lru_cache
 
 import cv2
 import numpy as np
@@ -17,8 +16,17 @@ from dead_leaves_generation.utils.perspective import perspective_shift
 
 logger = logging.getLogger(__name__)
 
-_NPY_PATH = Path(__file__).parent.parent / "npy" / "dict.npy"
-dict_instance = np.load(_NPY_PATH, allow_pickle=True)
+
+@lru_cache(maxsize=256)
+def disk_mask(radius):
+    """Binary disk of the given radius, identical to the masks stored in
+    npy/dict.npy by disk_dict.py (computed on demand instead of loading the
+    1.3GB dictionary)."""
+    L = np.arange(-radius, radius + 1, dtype=np.int32)
+    X, Y = np.meshgrid(L, L)
+    mask = np.array((X ** 2 + Y ** 2) <= radius ** 2, dtype=bool)
+    mask.setflags(write=False)
+    return mask
 
 
 class Textures:
@@ -199,10 +207,17 @@ class Deadleaves(Textures):
                  slope_range=None, use_texture=True,
                  online_generation=False, apply_warp=True,
                  random_phase=False, perspective=True,
-                 img_source=None):
+                 img_source=None, skip_hidden=True):
         # Deadleaves initialises all Textures attributes manually below to avoid
         # triggering the auto source_image_sampling() call inside Textures.__init__,
         # which is deferred here to compose_dead_leaves_depth_of_field().
+        #
+        # skip_hidden: shapes that end up entirely covered by previously placed
+        # (i.e. closer) shapes leave the image unchanged, so they are not
+        # generated / textured at all and the stack stops once every pixel is
+        # covered. The output distribution is unchanged; only the random stream
+        # differs. With skip_hidden=False the random numbers are drawn in exactly
+        # the same order as the original implementation.
         if types is None:
             types = ["sin"]
         if type_weights is None:
@@ -240,7 +255,9 @@ class Deadleaves(Textures):
         self.n_textures = 10
         self.textures = []
 
+        self.skip_hidden = skip_hidden
         self.binary_image = np.ones((width, width), dtype=bool)
+        self.n_uncovered = width * width
         self.resulting_image = np.ones((width, width, 3), dtype=np.uint8)
 
         self.vamin = 1 / (rmax ** (power_law_exponent - 1))
@@ -351,6 +368,48 @@ class Deadleaves(Textures):
                                  interpolation=cv2.INTER_AREA)
         return texture
 
+    def sample_radius(self):
+        """Samples a shape radius from the power-law distribution."""
+        radius = self.vamin + (self.vamax - self.vamin) * np.random.random()
+        return int(1 / (radius ** (1. / (self.power_law_exponent - 1))))
+
+    def sample_shape_type(self):
+        shape = self.shape_type
+        if shape == "mix":
+            shape = random.choice(["disk", "poly", "rectangle"])
+        return shape
+
+    def _fit_to_max_size(self, shape_1d):
+        if max(shape_1d.shape) >= 2 * self.rmax + 100:
+            scale = (2 * self.rmax + 100.) / max(shape_1d.shape)
+            new_size = (int(2 * ((shape_1d.shape[0] * scale) // 2) - 1),
+                        int(2 * ((shape_1d.shape[1] * scale) // 2) - 1))
+            shape_1d = np.bool_(cv2.resize(np.uint8(shape_1d), new_size,
+                                           interpolation=cv2.INTER_AREA))
+        return shape_1d
+
+    def polygon_mask_size(self, radius):
+        """Side length of the mask returned by generate_shape_mask for a polygon."""
+        size = 2 * (3 * radius // 2) + 1
+        if size >= 2 * self.rmax + 100:
+            size = int(2 * ((size * ((2 * self.rmax + 100.) / size)) // 2) - 1)
+        return size
+
+    def generate_shape_mask(self, shape, radius):
+        """Generates the binary mask of a shape of the given type and radius."""
+        if shape == "poly":
+            shape_1d = binary_polygon_generator(
+                2 * (3 * radius // 2) + 1,
+                n=np.random.randint(50, max(100, int(0.9 * radius))),
+                allow_holes=bool(random.getrandbits(1)),
+                smoothing=bool(random.getrandbits(1)))
+            shape_1d = self._fit_to_max_size(shape_1d)
+        elif shape == "disk":
+            shape_1d = disk_mask(radius)
+        elif shape == "rectangle":
+            shape_1d = self._fit_to_max_size(make_rectangle_mask(radius))
+        return shape_1d
+
     def generate_single_shape_mask(self):
         """Samples a shape radius from the power-law distribution and generates
         the corresponding binary mask.
@@ -358,62 +417,85 @@ class Deadleaves(Textures):
         Returns:
             tuple: (shape_mask np.ndarray, radius int)
         """
-        radius = self.vamin + (self.vamax - self.vamin) * np.random.random()
-        radius = int(1 / (radius ** (1. / (self.power_law_exponent - 1))))
-        shape = self.shape_type
-        if shape == "mix":
-            shape = random.choice(["disk", "poly", "rectangle"])
+        radius = self.sample_radius()
+        return self.generate_shape_mask(self.sample_shape_type(), radius), radius
 
-        if shape == "poly":
-            shape_1d = binary_polygon_generator(
-                2 * (3 * radius // 2) + 1,
-                n=np.random.randint(50, max(100, int(0.9 * radius))),
-                allow_holes=bool(random.getrandbits(1)),
-                smoothing=bool(random.getrandbits(1)))
-            if max(shape_1d.shape) >= 2 * self.rmax + 100:
-                scale = (2 * self.rmax + 100.) / max(shape_1d.shape)
-                new_size = (int(2 * ((shape_1d.shape[0] * scale) // 2) - 1),
-                            int(2 * ((shape_1d.shape[1] * scale) // 2) - 1))
-                shape_1d = np.bool_(cv2.resize(np.uint8(shape_1d), new_size,
-                                               interpolation=cv2.INTER_AREA))
-        elif shape == "disk":
-            shape_1d = dict_instance[()][str(radius)]
-        elif shape == "rectangle":
-            shape_1d = make_rectangle_mask(radius)
-            if max(shape_1d.shape) >= 2 * self.rmax + 100:
-                scale = (2 * self.rmax + 100.) / max(shape_1d.shape)
-                new_size = (int(2 * ((shape_1d.shape[0] * scale) // 2) - 1),
-                            int(2 * ((shape_1d.shape[1] * scale) // 2) - 1))
-                shape_1d = np.bool_(cv2.resize(np.uint8(shape_1d), new_size,
-                                               interpolation=cv2.INTER_AREA))
-        return shape_1d, radius
+    def sample_position(self):
+        return np.random.randint(0, self.width), np.random.randint(0, self.width)
 
-    def add_shape_to_binary_mask(self, shape_1d):
+    def shape_window(self, pos, width_shape, length_shape):
+        """Image window (x_min, x_max, y_min, y_max) covered by a shape mask of
+        size (width_shape, length_shape) centred on pos."""
+        return (max(0, pos[0] - width_shape // 2),
+                min(self.width, 1 + pos[0] + width_shape // 2),
+                max(0, pos[1] - length_shape // 2),
+                min(self.width, 1 + pos[1] + length_shape // 2))
+
+    def add_shape_to_binary_mask(self, shape_1d, pos=None):
         """Places a shape at a random position and updates the occlusion mask.
 
         Args:
             shape_1d (np.ndarray): Binary shape mask.
+            pos (tuple, optional): Shape centre. Sampled uniformly if None.
 
         Returns:
             tuple: (x_min, x_max, y_min, y_max, shape_mask_1d)
         """
         width_shape, length_shape = shape_1d.shape[0], shape_1d.shape[1]
-        pos = [np.random.randint(0, self.width), np.random.randint(0, self.width)]
+        if pos is None:
+            pos = self.sample_position()
+        x_min, x_max, y_min, y_max = self.shape_window(pos, width_shape, length_shape)
 
-        x_min = max(0, pos[0] - width_shape // 2)
-        x_max = min(self.width, 1 + pos[0] + width_shape // 2)
-        y_min = max(0, pos[1] - length_shape // 2)
-        y_max = min(self.width, 1 + pos[1] + length_shape // 2)
-
-        shape_mask_1d = self.binary_image[x_min:x_max, y_min:y_max].copy()
         shape_1d = shape_1d[
             max(0, width_shape // 2 - pos[0]):
                 min(width_shape, self.width + width_shape // 2 - pos[0]),
             max(0, length_shape // 2 - pos[1]):
                 min(length_shape, self.width + length_shape // 2 - pos[1])]
-        shape_mask_1d *= shape_1d
-        self.binary_image[x_min:x_max, y_min:y_max] *= np.logical_not(shape_mask_1d)
+        uncovered = self.binary_image[x_min:x_max, y_min:y_max]
+        shape_mask_1d = uncovered & shape_1d
+        uncovered &= ~shape_mask_1d
+        self.n_uncovered -= np.count_nonzero(shape_mask_1d)
         return x_min, x_max, y_min, y_max, shape_mask_1d
+
+    def shape_fill(self, shape_mask_1d, radius):
+        """Samples the colour or texture filling a shape.
+
+        Args:
+            shape_mask_1d (np.ndarray): Binary mask of the shape.
+            radius (int): Radius of the shape (used to decide fill type).
+
+        Returns:
+            np.ndarray: uint8 colour (3,) or texture crop (h, w, 3) to paint
+            where shape_mask_1d is True.
+        """
+        width_shape, length_shape = shape_mask_1d.shape[0], shape_mask_1d.shape[1]
+        color = np.uint8(self.img_source[np.random.randint(0, self.src_h),
+                                         np.random.randint(0, self.src_w), :])
+        if radius < 20:
+            return color
+
+        angle = np.random.randint(0, 360)
+        color_2 = np.uint8(self.img_source[np.random.randint(0, self.src_h),
+                                           np.random.randint(0, self.src_w), :])
+        grad_vs_texture = np.random.random() if self.use_texture else 1.0
+        if grad_vs_texture > 0.95:
+            k = np.random.uniform(0.1, 0.5)
+            # the gradient map is (size x size); only the crop is converted to RGB
+            size = 2 * max(width_shape, length_shape) + 1
+            x = np.random.randint(0, max(1, size - width_shape))
+            y = np.random.randint(0, max(1, size - length_shape))
+            return linear_color_gradient(
+                color, color_2, width=size, angle=angle, k=k, color_space="lab",
+                crop=(x, y, width_shape, length_shape))
+
+        if self.online_generation:
+            textureMap = self.generate_texture(width=60 + max(width_shape, length_shape))
+        else:
+            textureMap = self.pick_texture(size=max(width_shape, length_shape))
+        h, w = textureMap.shape[0], textureMap.shape[1]
+        x = np.random.randint(0, max(1, h - width_shape))
+        y = np.random.randint(0, max(1, w - length_shape))
+        return textureMap[x:x + width_shape, y:y + length_shape]
 
     def render_shape(self, shape_mask_1d, radius):
         """Fills a shape mask with a texture or colour.
@@ -425,37 +507,41 @@ class Deadleaves(Textures):
         Returns:
             tuple: (shape_mask float32, shape_render uint8)
         """
-        width_shape, length_shape = shape_mask_1d.shape[0], shape_mask_1d.shape[1]
         shape_mask = np.float32(np.repeat(shape_mask_1d[:, :, np.newaxis], 3, axis=2))
-        shape_render = shape_mask.copy()
-        color = np.uint8(self.img_source[np.random.randint(0, self.src_h),
-                                         np.random.randint(0, self.src_w), :])
-        if radius < 20:
-            shape_render = color * shape_render
-        else:
-            angle = np.random.randint(0, 360)
-            color_2 = np.uint8(self.img_source[np.random.randint(0, self.src_h),
-                                               np.random.randint(0, self.src_w), :])
-            grad_vs_texture = np.random.random() if self.use_texture else 1.0
-            if grad_vs_texture > 0.95:
-                k = np.random.uniform(0.1, 0.5)
-                textureMap = linear_color_gradient(
-                    color, color_2,
-                    width=2 * max(width_shape, length_shape) + 1,
-                    angle=angle, k=k, color_space="lab")
-            else:
-                if self.online_generation:
-                    textureMap = self.generate_texture(width=60 + max(width_shape, length_shape))
-                else:
-                    textureMap = self.pick_texture(size=max(width_shape, length_shape))
-
-            h, w = textureMap.shape[0], textureMap.shape[1]
-            x = np.random.randint(0, max(1, h - width_shape))
-            y = np.random.randint(0, max(1, w - length_shape))
-            textureMap = textureMap[x:x + width_shape, y:y + length_shape]
-            shape_render = np.uint8(np.float32(shape_render) * textureMap)
-
+        fill = self.shape_fill(shape_mask_1d, radius)
+        shape_render = np.zeros(shape_mask.shape, dtype=np.uint8)
+        np.copyto(shape_render, fill, where=shape_mask_1d[..., None])
         return shape_mask, shape_render
+
+    def place_next_shape(self):
+        """Samples the next shape of the stack and its position.
+
+        Returns:
+            tuple: (x_min, x_max, y_min, y_max, visible mask, radius), or None
+            when skip_hidden is set and the shape is entirely hidden.
+        """
+        if not self.skip_hidden:
+            # same order of random draws as the original implementation
+            shape_1d, radius = self.generate_single_shape_mask()
+            return self.add_shape_to_binary_mask(shape_1d) + (radius,)
+
+        radius = self.sample_radius()
+        shape = self.sample_shape_type()
+        if shape == "poly":
+            # polygons are expensive: check the bounding box before drawing them
+            size = self.polygon_mask_size(radius)
+            pos = self.sample_position()
+            x_min, x_max, y_min, y_max = self.shape_window(pos, size, size)
+            if not self.binary_image[x_min:x_max, y_min:y_max].any():
+                return None
+            shape_1d = self.generate_shape_mask(shape, radius)
+        else:
+            shape_1d = self.generate_shape_mask(shape, radius)
+            pos = self.sample_position()
+        placed = self.add_shape_to_binary_mask(shape_1d, pos)
+        if not placed[4].any():
+            return None
+        return placed + (radius,)
 
     def generate_stack(self, disk_count):
         """Generates a stack of rendered shapes.
@@ -467,11 +553,15 @@ class Deadleaves(Textures):
             tuple: (resulting_image uint8, binary_mask uint8)
         """
         for _ in range(disk_count):
-            shape_1d, radius = self.generate_single_shape_mask()
-            x_min, x_max, y_min, y_max, shape_mask_1d = self.add_shape_to_binary_mask(shape_1d)
-            shape_mask, shape_render = self.render_shape(shape_mask_1d, radius)
-            self.resulting_image[x_min:x_max, y_min:y_max, :] *= np.uint8(1 - shape_mask)
-            self.resulting_image[x_min:x_max, y_min:y_max, :] += np.uint8(shape_render)
+            if self.skip_hidden and self.n_uncovered == 0:
+                break
+            placed = self.place_next_shape()
+            if placed is None:
+                continue
+            x_min, x_max, y_min, y_max, shape_mask_1d, radius = placed
+            fill = self.shape_fill(shape_mask_1d, radius)
+            np.copyto(self.resulting_image[x_min:x_max, y_min:y_max], fill,
+                      where=shape_mask_1d[..., None])
         logger.debug("Dead leaves stack created (%d shapes)", disk_count)
         return (self.resulting_image.copy(),
                 np.uint8(1 - np.repeat(self.binary_image[..., np.newaxis], 3, axis=2)).copy())
@@ -479,6 +569,7 @@ class Deadleaves(Textures):
     def clear(self):
         self.resulting_image = np.ones((self.width, self.width, 3), dtype=np.uint8)
         self.binary_image = np.ones((self.width, self.width), dtype=bool)
+        self.n_uncovered = self.width * self.width
 
     def source_image_sampling(self):
         """Selects a random source image from the path directory.

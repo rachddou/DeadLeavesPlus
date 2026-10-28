@@ -20,7 +20,7 @@ Even though Deep Neural Networks (NN) are extremely powerful for image restorati
 
 ## Usage of this repository
 
-The main contribution here corresponds to the data generation code. We also include training and testing code, which was taken from the original repositories of DRUNet and FFDNet. To generate dead leaves images, we first need to install a few python libraries and create a dictionnary of shapes:
+The main contribution here corresponds to the data generation code. We also include training and testing code, which was taken from the original repositories of DRUNet and FFDNet. To generate dead leaves images, we first need to install a few python libraries:
 
 ```
 sh setup.sh

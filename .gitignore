@@ -23,3 +23,6 @@ events.*
 !readme_images/*
 !setup.sh
 !default.yaml
+__pycache__/
+*.nbi
+*.nbc
