@@ -6,7 +6,7 @@ from dead_leaves_generation.utils.kernels import (
 
 
 ## rotation function using OpenCV
-def rotate_CV(image, angle ):
+def rotate_cv(image, angle):
     """
     Rotate an image by a given angle using OpenCV
 
@@ -26,7 +26,6 @@ def rotate_CV(image, angle ):
     return rotated
 
 
-# normalizing/ thresholding function
 def normalize(x):
     """
     function that normalizes an image between 0 and 1
@@ -37,16 +36,6 @@ def normalize(x):
     x = (x-x.min())/(x.max()-x.min())
     return(x)
 
-def thresholding(img,a,b):
-    """
-    soft threshold of value min =a and max =b
-    """
-    img[img<a] = a
-    img[img>b] = b
-    img = np.uint8(255*(img-a)/(b-a))
-    return(img)
-
-## functions for counting remaining disks
 def theoretical_number_disks(delta,r_min,r_max,width,alpha):
     """function that computes the theoretical number of disks in a dead leaves image with given parameters.
 
@@ -67,47 +56,6 @@ def theoretical_number_disks(delta,r_min,r_max,width,alpha):
     else:
         return(np.log(delta)/np.log(1-d))
 
-def N_sup_r(r,width,r_min,r_max):
-    delta = 100/(width**2)
-    N = theoretical_number_disks(delta,r_min,r_max,width)
-    prop = ((1/r**2) - (1/r_max**2))/(1/(r_min**2) - 1/(r_max**2))
-    res = N*prop
-    return(res)
-
-
-## logit functions
-def logistic(x, L=1, x_0=0, k=1):
-    """
-    logistic function
-
-    Args:
-        x (_type_): input
-        L (int, optional): _description_. Defaults to 1.
-        x_0 (int, optional): _description_. Defaults to 0.
-        k (int, optional): _description_. Defaults to 1.
-
-    Returns:
-        _type_: y = L / (1 + exp(-k * (x - x_0)))
-    """
-    return L / (1 + np.exp(-k * (x - x_0)))
-
-def normalized_logistic(x,k):
-    """
-    function that normalizes a logistic function between 0 and 1
-    """
-    y = (logistic(12.1*x-6,k=k)-logistic(-6,k=k))/(logistic(6.1,k=k)-logistic(-6,k=k))
-    return(y)
-
-def sigmoid(x,lamda):
-    """
-    sigmoid function to transform the sinusoid in a sharper transition
-    """
-    sig = 1/(1+np.exp(-lamda*(x)))
-    if lamda >=20:
-        sig[sig>0.5] = 1
-        sig[sig<=0.5] = 0
-    return(sig)
-
 ## color gradient function
 
 def linear_color_gradient(color_1,color_2,width,angle, k = 0.5,color_space = "lab", crop = None):
@@ -119,21 +67,23 @@ def linear_color_gradient(color_1,color_2,width,angle, k = 0.5,color_space = "la
         angle (_type_): angle of the gradient
         k (float, optional): smoothness factor of the gradient. Defaults to 0.5.
         color_space (str, optional): _description_. Defaults to "lab".
-        crop (tuple, optional): (x, y, h, w) window of the width x width gradient
+        crop (tuple, optional): (row, col, h, w) window of the width x width gradient
             to return. The gradient is still normalised over the whole map, so the
             window is identical to cropping the full output. Defaults to None.
     """
-    # central crop [width//2:-width//2] of a rotated (2*width)^2 linear ramp
+    # central width x width crop of a linear ramp rotated on a (2*width)^2 canvas
     n = 2*width
-    c0, c1 = width//2, n + (-width)//2
+    c0 = width//2
+    c1 = c0 + width
     M = rotation_inverse((n, n), angle)
     r0, r1, q0, q1 = source_window(M, (c0, c1), c1, (n, n))
     ramp = np.broadcast_to(np.linspace(0,1,n)[q0:q1], (r1 - r0, q1 - q0))
     rotated_grad = normalize(warp_window(ramp, (r0, q0), M, (c0, c1), c1)[:, c0:])
 
     if crop is not None:
-        x, y, h, w = crop
-        rotated_grad = rotated_grad[x:x + h, y:y + w]
+        row, col, h, w = crop
+        rotated_grad = rotated_grad[row:row + h, col:col + w]
+    # smooth step: (logistic(12.1 x - 6) - logistic(-6)) / (logistic(6.1) - logistic(-6))
     lin_gradient = np.ascontiguousarray(rotated_grad)
     normalized_logistic_inplace(lin_gradient, k)
 
@@ -153,7 +103,7 @@ def linear_color_gradient(color_1,color_2,width,angle, k = 0.5,color_space = "la
 
 ## windowed rotations
 def rotation_inverse(shape, angle):
-    """Inverse of the affine map used by rotate_CV for an image of the given shape."""
+    """Inverse of the affine map used by rotate_cv for an image of the given shape."""
     h, w = shape[:2]
     M = cv2.getRotationMatrix2D((w // 2, h // 2), angle, 1)
     return cv2.invertAffineTransform(M)

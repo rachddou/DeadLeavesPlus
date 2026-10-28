@@ -59,18 +59,19 @@ def extract_reference(rev, dest):
 
 
 def generate(module, preset, image_dir, size, seed, **kwargs):
-    np.random.seed(seed)
-    random.seed(seed)
-    _seed_numba(seed)
     generator = module.Deadleaves(
         rmin=preset["rmin"], rmax=preset["rmax"], power_law_exponent=3.0, width=size,
         use_natural_images=True, path=image_dir, shape_type=preset["shape_type"],
         types=["sin", "freq_noise", "texture_mixes"], type_weights=[0.16, 0.67, 0.17],
         slope_range=[[0.5, 2.5]], use_texture=preset["use_texture"], online_generation=True,
-        apply_warp=True, random_phase=False, perspective=True, **kwargs)
+        apply_warp=True, perspective=True, **kwargs)
     # os.listdir order is filesystem dependent: fix it so both versions see the same list
     generator.files = sorted(os.path.join(image_dir, f) for f in os.listdir(image_dir)
                              if os.path.isfile(os.path.join(image_dir, f)))
+    # seed after construction: only the generation draws are expected to match
+    np.random.seed(seed)
+    random.seed(seed)
+    _seed_numba(seed)
     if preset["multiple_shapes"]:
         generator.shape_type = np.random.choice(["poly", "mix"])
     blur_val = 5.0 * np.random.power(0.5) if preset["blur_type"] == "gaussian" else 0.0

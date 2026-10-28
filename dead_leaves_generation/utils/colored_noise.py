@@ -5,28 +5,22 @@ from dead_leaves_generation.utils.kernels import gather_planes, impose_magnitude
 
 
 def _magnitude_1d(resolution, slope):
-    """|f|^slope along one axis of the fftshift-ed frequency grid of sample_magnitude."""
+    """|f / resolution|^slope for the FFT frequency index f of each array index.
+
+    The imposed magnitude is M[i, j] = 1 / (1e-16 + g[i] + g[j]) with
+    g = _magnitude_1d(width, slope), and M[0, 0] = 0 (no DC component).
+    """
     k = np.arange(resolution)
     f = ((k - resolution // 2) % resolution) - resolution / 2
     return np.abs(f / resolution) ** slope
 
 
-def sample_magnitude(resolution,slope):
-    """function that creates a magnitude map for the frequency domain in 1/f^slope
-
-    Args:
-        resolution (int): size of the texture image
-        slope (float): slope of the magnitude map in the log domain
-    """
-    g = _magnitude_1d(resolution, slope)
-    magnitude = 1 / (1e-16 + g[None, :] + g[:, None])
-    magnitude[0,0] = 0
-    magnitude = np.tile(magnitude[:,:,None], (1,1,3))
-    return(magnitude)
-
-
 def sample_color_noise(image,width,slope):
     """function that creates colored noise with a given slope in the frequency domain from the color histogram of an existing image
+
+    Each channel of a white noise image (pixels drawn from a 50x50 patch of
+    ``image``) keeps its Fourier phase, gets the 1/f^slope magnitude M (see
+    _magnitude_1d), and is rescaled to the mean / std of the white noise.
 
     Args:
         image (_type_): source image for color histogram

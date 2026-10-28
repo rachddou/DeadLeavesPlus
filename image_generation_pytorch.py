@@ -50,7 +50,7 @@ def main(config):
             use_texture=config.texture.enabled,
             online_generation=config.texture.online_generation,
             apply_warp=config.texture.apply_warp,
-            random_phase=config.texture.random_phase,
+            random_phase=config.texture.get("random_phase", False),
             perspective=config.texture.apply_perspective,
             texture_path=config.texture.texture_path,
             device=device,

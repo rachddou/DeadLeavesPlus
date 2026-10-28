@@ -166,16 +166,16 @@ def rgb_to_lab(rgb, div=255.0):
 # ---------------------------------------------------------------------------
 
 @njit(cache=True)
-def sinusoid_transfer(x, thresh, lamda, out):
-    """In-place equivalent of the reference chain
+def sinusoid_transfer(x, thresh, lam, out):
+    """Maps a sinusoid in [-1, 1] to a sharpened profile in [0, 1]:
 
-        x = 0.5 + 0.5 * x ; x[x > thresh] = 1 ; x = sigmoid(x, lamda)
+        x = 0.5 + 0.5 * x ; x[x > thresh] = 1 ; x = sigmoid(x)
         x = (x - sigmoid(0)) / (sigmoid(1) - sigmoid(0))
 
-    (``lamda < 20`` so the sigmoid is never binarised). ``out`` may alias ``x``.
+    with sigmoid(x) = 1 / (1 + exp(-lam * x)). ``out`` may alias ``x``.
     """
-    s0 = 1 / (1 + math.exp(-lamda * 0.0))
-    s1 = 1 / (1 + math.exp(-lamda * 1.0))
+    s0 = 1 / (1 + math.exp(-lam * 0.0))
+    s1 = 1 / (1 + math.exp(-lam * 1.0))
     d = s1 - s0
     h, w = x.shape
     for i in range(h):
@@ -183,13 +183,14 @@ def sinusoid_transfer(x, thresh, lamda, out):
             v = 0.5 + 0.5 * x[i, j]
             if v > thresh:
                 v = 1.0
-            v = 1 / (1 + math.exp(-lamda * v))
+            v = 1 / (1 + math.exp(-lam * v))
             out[i, j] = (v - s0) / d
 
 
 @njit(cache=True)
 def normalized_logistic_inplace(x, k):
-    """In-place ``normalized_logistic`` (see utils.normalized_logistic)."""
+    """In place: x <- (logistic(12.1 x - 6) - logistic(-6)) / (logistic(6.1) - logistic(-6))
+    with logistic(t) = 1 / (1 + exp(-k t)), a smooth step from 0 to 1 on [0, 1]."""
     lo = 1 / (1 + math.exp(-k * (-6 - 0)))
     hi = 1 / (1 + math.exp(-k * (6.1 - 0)))
     d = hi - lo
@@ -202,8 +203,10 @@ def normalized_logistic_inplace(x, k):
 
 @njit(cache=True)
 def warp_bilinear_clipped(im, u, v):
-    """Same as ``bilinear_interpolate(im, u + xx, v + yy) + im.min()`` in
-    geometric_perturbation.py, including its border clipping behaviour."""
+    """out[i, j] = bilinear interpolation of im at (row i + v[i, j], col j + u[i, j]),
+    plus im.min(). The corner indices are clipped to the image before computing
+    the weights, so samples outside [0, w-1) x [0, h-1) get cancelling weights
+    and evaluate to im.min(), as in the original implementation."""
     h, w = im.shape
     out = np.empty((h, w))
     mn = im[0, 0]
@@ -325,8 +328,9 @@ def gather_planes(colors, index, width):
 @njit(cache=True)
 def impose_magnitude(spectrum, g, g_neg):
     """In place: spectrum <- (M(k) + M(-k)) / 2 * exp(i angle(spectrum)) on the
-    rfft half-plane, M being colored_noise.sample_magnitude built from the 1D
-    profiles g (and g_neg = g at negated frequencies)."""
+    rfft half-plane, M[i, j] = 1 / (1e-16 + g[i] + g[j]) being the magnitude
+    built from the 1D profile g (colored_noise._magnitude_1d), and g_neg = g at
+    negated frequencies."""
     nc, h, w = spectrum.shape
     for i in range(h):
         for j in range(w):

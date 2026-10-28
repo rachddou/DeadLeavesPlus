@@ -1,12 +1,10 @@
 import numpy as np
-from skimage.color import rgb2lab, lab2rgb
-from dead_leaves_generation.utils.interpolation_maps import sample_grid, sample_sinusoid, sample_interpolation_map
-from dead_leaves_generation.utils.geometric_perturbation import generate_perturbation
+from dead_leaves_generation.utils.interpolation_maps import sample_interpolation_map
 from dead_leaves_generation.utils.colored_noise import sample_color_noise
 from dead_leaves_generation.utils.kernels import mix_lab_to_rgb_u8, rgb_to_lab
 
 
-def _sample_slope_from_ranges(slope_range):
+def sample_slope(slope_range):
     """Samples a slope value uniformly from a union of disjoint intervals.
 
     Args:
@@ -31,26 +29,27 @@ def _sample_slope_from_ranges(slope_range):
         return np.random.uniform(slope_range[0], slope_range[1])
 
 
-def bilevelTextureMixer(color_source_1=None, color_source_2=None,
-                        single_color1=True, single_color2=True,
-                        mixing_types=None, width=1000, thresh_val=10,
-                        warp=True, slope_range=None):
-    """Mixes two color/texture sources with a sinusoidal, grid, or noise pattern.
+def bilevel_texture_mixer(color_source_1=None, color_source_2=None,
+                          single_color_1=True, single_color_2=True,
+                          mixing_types=None, width=1000,
+                          warp=True, slope_range=None):
+    """Mixes two color/texture sources with a sinusoidal or grid pattern.
+
+    Each source is either a single colour or a coloured noise map; they are
+    interpolated in the Lab colour space according to the interpolation map.
 
     Args:
         color_source_1 (np.ndarray, optional): Source color image 1 (H x W x 3).
             Defaults to random noise if None.
         color_source_2 (np.ndarray, optional): Source color image 2 (H x W x 3).
             Defaults to random noise if None.
-        single_color1 (bool): Whether texture 1 is a single color (True) or a
+        single_color_1 (bool): Whether texture 1 is a single color (True) or a
             colored noise map (False). Defaults to True.
-        single_color2 (bool): Whether texture 2 is a single color (True) or a
+        single_color_2 (bool): Whether texture 2 is a single color (True) or a
             colored noise map (False). Defaults to True.
-        mixing_types (list, optional): Interpolation methods; subset of
-            ["sin", "grid", "noise"]. Defaults to ["sin"].
+        mixing_types (list, optional): Interpolation maps to multiply; subset of
+            ["sin", "grid"]. Defaults to ["sin"].
         width (int): Output texture size. Defaults to 1000.
-        thresh_val (int): Threshold half-width for noise-based binarisation.
-            Defaults to 10.
         warp (bool): Whether to apply geometric warping to the interpolation map.
             Defaults to True.
         slope_range: Frequency slope range for colored noise generation.
@@ -65,70 +64,26 @@ def bilevelTextureMixer(color_source_1=None, color_source_2=None,
     if slope_range is None:
         slope_range = [0.5, 2.5]
 
-    if single_color1:
+    if single_color_1:
         texture_map_1 = color_source_1[
             np.random.randint(0, color_source_1.shape[0], 1),
             np.random.randint(0, color_source_1.shape[1], 1), :
         ].reshape((1, 1, 3))
     else:
-        slope1 = _sample_slope_from_ranges(slope_range)
-        texture_map_1 = sample_color_noise(color_source_1, width, slope1)
+        texture_map_1 = sample_color_noise(color_source_1, width, sample_slope(slope_range))
 
-    if single_color2:
+    if single_color_2:
         texture_map_2 = color_source_2[
             np.random.randint(0, color_source_2.shape[0], 1),
             np.random.randint(0, color_source_2.shape[1], 1), :
         ].reshape((1, 1, 3))
     else:
-        slope2 = _sample_slope_from_ranges(slope_range)
-        texture_map_2 = sample_color_noise(color_source_2, width, slope2)
+        texture_map_2 = sample_color_noise(color_source_2, width, sample_slope(slope_range))
 
     interpolation_map = sample_interpolation_map(
-        mixing_types=mixing_types, width=width, thresh_val=thresh_val, warp=warp)
+        mixing_types=mixing_types, width=width, warp=warp)
 
     # fused rgb2lab(texture / 255.) -> lab interpolation -> uint8(255 * lab2rgb)
     t1 = rgb_to_lab(texture_map_1)
     t2 = rgb_to_lab(texture_map_2)
     return mix_lab_to_rgb_u8(interpolation_map, t1, t2)
-
-
-def pattern_patch_two_colors(color_1, color_2, width=100, period=None,
-                              angle=45, warp=False, type="sin"):
-    """Mixes two colors with a sinusoidal or grid interpolation pattern.
-
-    Args:
-        color_1: Either an image or a single RGB color.
-        color_2: Either an image or a single RGB color.
-        width (int): Output image width. Defaults to 100.
-        period (list, optional): Period(s) of the pattern oscillations.
-            Defaults to [100].
-        angle (int): Rotation angle in degrees. Defaults to 45.
-        warp (bool): Whether to apply atmospheric perturbation. Defaults to False.
-        type (str): Interpolation map type ("sin" or "grid"). Defaults to "sin".
-            Note: grid line thickness is sampled randomly by sample_grid.
-    """
-    if period is None:
-        period = [100]
-
-    color_1 = color_1 / 255.
-    color_2 = color_2 / 255.
-    t1 = rgb2lab(color_1)
-    t2 = rgb2lab(color_2)
-
-    if type == "sin":
-        pattern = sample_sinusoid(width=width, angle=angle,
-                                  variable_freq=(np.random.random() > 0.5))
-    elif type == "grid":
-        pattern = sample_grid(width=width, period=period, angle=angle)
-    else:
-        pattern = np.zeros((width, width))
-
-    if warp:
-        pattern = np.clip(generate_perturbation(pattern), 0, 1)
-
-    r = pattern * (t2[..., 0] - t1[..., 0]) + t1[..., 0]
-    g = pattern * (t2[..., 1] - t1[..., 1]) + t1[..., 1]
-    b = pattern * (t2[..., 2] - t1[..., 2]) + t1[..., 2]
-
-    res_image = lab2rgb(np.stack([r, g, b], axis=-1))
-    return np.uint8(res_image * 255)

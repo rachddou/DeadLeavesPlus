@@ -1,46 +1,44 @@
 defaults:
   - override hydra/launcher: joblib
 
-shape:
-  radius_min: 2           # minimum shape radius in pixels (power-law distributed)
+shape: ## geometry parameters
+  radius_min: 10           # minimum shape radius in pixels (power-law distributed)
   radius_max: 500          # maximum shape radius in pixels
   power_law_exponent: 3.0  # controls size distribution; higher = more small shapes
-  shape_type: "disk"       # "poly" | "disk" | "rectangle" | "mix"
-  multiple_shapes: False    # randomly switch between "poly" and "mix" each image
+  shape_type: "poly"       # "poly" | "disk" | "rectangle" | "mix"
+  multiple_shapes: True    # randomly switch between "poly" and "mix" each image
 
-task: 1
+task: 1                    # job index, only used to run several jobs with --multirun
 
-texture:
-  enabled: False
+texture: ## texture parameters
+  enabled: True                     # False = large shapes get colour gradients
   types: ["sin", "freq_noise", "texture_mixes"]
   type_weights: [0.16, 0.67, 0.17]  # sampling probabilities, must sum to 1
   slope_range: [[0.5, 2.5]]         # 1/f^s frequency slope; supports disjoint
                                     # intervals e.g. [[0.5, 1.1], [1.75, 2.4]]
-  online_generation: True           # True = generate per shape on-the-fly;
+  online_generation: True           # True = generate a texture per shape;
                                     # False = precompute a texture dictionary
   apply_warp: True                  # apply geometric warp to interpolation maps
-  random_phase: False               # randomise FFT phase when generating textures
   texture_path: ""                  # if non-empty, load textures from this dir
   apply_perspective: True           # apply random perspective shift to textures
 
-color:
+color: ## color parameters
   use_natural_images: True          # sample colours from real images
-  image_dir: "/lustre/fswork/projects/rech/cjz/udz45zt/datasets/datasets_drunet/WaterlooDB"                     # path to source images (required when
+  image_dir: "path/to/waterlooDB/"  # directory of source images (required when
                                     # use_natural_images is True)
   grey: False                       # save images as greyscale
-  partial_images: False
 
-io:
-  path_origin: "datasets/"
-  path: "dead_leaves_v2/"
+io: ## saving parameters
+  path_origin: "datasets/"          # images are saved in path_origin/path
+  path: "vibrant_leaves/"
 
-post_process:
-  depth_of_field: False              # composite background/plain/foreground layers
-  blur_type: "None"             # "gaussian" | "lens"
+post_process: ## depth-of-field and other post-processing
+  depth_of_field: True              # composite background/plain/foreground layers
+  blur_type: "gaussian"             # "gaussian" | "lens"
   extra_blur: False                 # additional Gaussian blur after DoF compositing
-  downscale: True                  # 2x downsample the final image
+  downscale: False                  # 2x downsample the final image
 
-n_images: 400
+n_images: 10
 image_size: 512
 image_type: "dead_leaves"          # "dead_leaves" | "textures"
-test: False
+test: False                        # debug: one stack of 15000 shapes, no DoF

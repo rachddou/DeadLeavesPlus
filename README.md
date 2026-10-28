@@ -28,68 +28,86 @@ sh setup.sh
 
 ### Data Generation
 
-In order to generate  VibrantLeaves images, run the following command:
+Generation needs Python 3.12 or 3.13 (Hydra 1.3 does not run on Python 3.14). Set the directory of colour source images (we use the [Waterloo Exploration Database](https://ece.uwaterloo.ca/~k29ma/exploration/)), either in `config/default.yaml` or on the command line, and run:
 
 ```
-python image_generation.py
+python image_generation.py color.image_dir=path/to/waterlooDB/
 ```
 
-This function will generate and store images in the `dataset/vibrantLeaves/` folder. In order to change the parameters of generation feel free to modify the `config/default.yaml` file.
+The images are saved in `io.path_origin/io.path` (`datasets/vibrant_leaves/` by default). Any parameter of `config/default.yaml` can be changed in the file or overridden on the command line with Hydra's `key=value` syntax. For example, classical dead leaves (disks, flat colours and gradients, no depth of field):
 
-This file is organized as follows:
+```
+python image_generation.py shape.shape_type=disk shape.multiple_shapes=False shape.radius_min=2 \
+    texture.enabled=False post_process.depth_of_field=False post_process.blur_type=None \
+    post_process.downscale=True io.path=dead_leaves/
+```
+
+`config/default.yaml` contains the VibrantLeaves settings:
 
 ```yaml
 defaults:
   - override hydra/launcher: joblib
 
 shape: ## geometry parameters
-  radius_min: 10           # minimum shape radius in pixels
+  radius_min: 10           # minimum shape radius in pixels (power-law distributed)
   radius_max: 500          # maximum shape radius in pixels
   power_law_exponent: 3.0  # controls size distribution; higher = more small shapes
   shape_type: "poly"       # "poly" | "disk" | "rectangle" | "mix"
   multiple_shapes: True    # randomly switch between "poly" and "mix" each image
 
-task: 1
+task: 1                    # job index, only used to run several jobs with --multirun
 
 texture: ## texture parameters
-  enabled: True
+  enabled: True                     # False = large shapes get colour gradients
   types: ["sin", "freq_noise", "texture_mixes"]
   type_weights: [0.16, 0.67, 0.17]  # sampling probabilities, must sum to 1
   slope_range: [[0.5, 2.5]]         # 1/f^s frequency slope; supports disjoint
                                     # intervals e.g. [[0.5, 1.1], [1.75, 2.4]]
-  online_generation: True           # True = generate per shape; False = precompute dict
-  apply_warp: True
-  random_phase: False
-  texture_path: ""
-  apply_perspective: True
+  online_generation: True           # True = generate a texture per shape;
+                                    # False = precompute a texture dictionary
+  apply_warp: True                  # apply geometric warp to interpolation maps
+  texture_path: ""                  # if non-empty, load textures from this dir
+  apply_perspective: True           # apply random perspective shift to textures
 
 color: ## color parameters
-  use_natural_images: True
-  image_dir: "path/to/waterlooDB/"  # path to source images
-  grey: False
-  partial_images: False
+  use_natural_images: True          # sample colours from real images
+  image_dir: "path/to/waterlooDB/"  # directory of source images (required when
+                                    # use_natural_images is True)
+  grey: False                       # save images as greyscale
 
 io: ## saving parameters
-  path_origin: "datasets/"
+  path_origin: "datasets/"          # images are saved in path_origin/path
   path: "vibrant_leaves/"
 
 post_process: ## depth-of-field and other post-processing
-  depth_of_field: True
+  depth_of_field: True              # composite background/plain/foreground layers
   blur_type: "gaussian"             # "gaussian" | "lens"
-  extra_blur: False
-  downscale: False
+  extra_blur: False                 # additional Gaussian blur after DoF compositing
+  downscale: False                  # 2x downsample the final image
 
 n_images: 10
 image_size: 512
 image_type: "dead_leaves"          # "dead_leaves" | "textures"
-test: False
+test: False                        # debug: one stack of 15000 shapes, no DoF
 ```
 
-Hydra allows us to run this code in parralel to save time.
+To generate in parallel, launch several jobs with Hydra's joblib launcher; `task` only distinguishes the jobs, each one generates `n_images` images:
+
+```
+python image_generation.py --multirun task=1,2,3,4 hydra.launcher.n_jobs=4
+```
+
+The first run compiles the numba kernels and caches them (a few seconds); run one short generation (`n_images=1`) before launching many jobs at once so that they do not all compile them.
+
+#### How the generator works
+
+An image is the composition of three layers of "leaves" (`Deadleaves.compose_dead_leaves_depth_of_field`): a blurred background, an in-focus middle layer and a blurred foreground. Each layer is a stack of shapes (polygons, disks or rectangles) whose radii follow a power law between `radius_min` and `radius_max` (`Deadleaves.generate_stack`). Shapes are placed front to back: each new shape only paints the pixels that are not covered yet. Small shapes get a flat colour picked in a source image; larger ones get a colour gradient or a texture (sinusoidal patterns, coloured 1/f noise or mixes of both, optionally warped and seen in perspective).
+
+Shapes that end up entirely hidden behind previously placed shapes do not change the image, so they are not generated (`skip_hidden=True`, the default); this gives the same images, in distribution, much faster. `scripts/compare_with_reference.py` checks the generator against the original implementation.
 
 ### Datasets
 
-If you don't want to bother with launching data generation, here's a link to dowload the dataset: [UNRELEASED(WIP)]()
+If you don't want to bother with launching data generation, here's a link to download the dataset: [UNRELEASED(WIP)]()
 
 ### Training
 
