@@ -141,9 +141,11 @@ class Textures:
         Updates img_source, src_h and src_w.
         """
         if not self.files:
-            self.files = [os.path.join(self.path, f)
-                          for f in os.listdir(self.path)
-                          if os.path.isfile(os.path.join(self.path, f))]
+            # sorted: os.listdir's order depends on the file system, and the
+            # same random draw must pick the same image everywhere
+            self.files = sorted(os.path.join(self.path, f)
+                                for f in os.listdir(self.path)
+                                if os.path.isfile(os.path.join(self.path, f)))
         ind = random.randint(0, len(self.files) - 1)
         self.img_source = skio.imread(self.files[ind])
         self.src_h = self.img_source.shape[0]

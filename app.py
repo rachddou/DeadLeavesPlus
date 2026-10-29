@@ -3,9 +3,11 @@ chosen in a menu, then a full dataset of 1000 images with the same parameters.
 
 The page (app_ui/index.html) is served by a small HTTP server; the images are
 generated in parallel worker processes with the same code as image_generation.py.
-Sample images are streamed back to the page as they are ready; dataset images
-are saved in a new folder of config io.path_origin (datasets/ by default),
-together with the config used.
+Image i uses the seed i, so that samples made with different parameters are
+comparable and datasets reproducible. Sample images are streamed back to the
+page as they are ready; dataset images are saved in a new folder of config
+io.path_origin (datasets/ by default), together with the config used, from
+which image_generation.py regenerates the same images.
 
 usage:
     python app.py [--host 127.0.0.1] [--port 7860] [--workers N]
@@ -17,7 +19,6 @@ import io
 import json
 import multiprocessing as mp
 import os
-import random
 import subprocess
 import sys
 import threading
@@ -264,7 +265,7 @@ class DatasetJob:
         self.out_dir.mkdir(parents=True, exist_ok=False)
         # saved config: image_generation.py --config-path <out_dir> --config-name config
         # generates a dataset with the same parameters
-        saved = dict(config, n_images=n_images,
+        saved = dict(config, n_images=n_images, seed=0, task=1,
                      io={"path_origin": str(self.out_dir.parent), "path": self.out_dir.name})
         OmegaConf.save(OmegaConf.create(saved), self.out_dir / "config.yaml")
         self.pool, self.config = pool, config
@@ -276,7 +277,7 @@ class DatasetJob:
         threading.Thread(target=self._run, daemon=True).start()
 
     def _run(self):
-        seeds = random.sample(range(2 ** 31), self.total)
+        seeds = range(self.total)   # image i uses seed i (see config.yaml)
         in_flight, next_index = set(), 0
         while (next_index < self.total or in_flight) and not self.cancelled:
             while next_index < self.total and len(in_flight) < self.max_in_flight:
@@ -428,7 +429,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/x-ndjson")
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
-        seeds = random.sample(range(2 ** 31), N_IMAGES)
+        # fixed seeds: samples made with different parameters are comparable
+        seeds = range(N_IMAGES)
         futures = {self.pool.submit(_generate, config, seed): i for i, seed in enumerate(seeds)}
         try:
             for future in cf.as_completed(futures):

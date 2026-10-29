@@ -8,6 +8,7 @@ import skimage.io as skio
 from skimage.color import rgb2gray
 
 from dead_leaves_generation.dead_leaves_class import Textures, Deadleaves
+from dead_leaves_generation.utils.utils import set_seed
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +109,9 @@ def main(config):
     """Generates dead-leaves or texture images based on the Hydra config.
 
     Creates the output directory, instantiates the generator, runs the generation
-    loop, and saves each image to disk.
+    loop, and saves each image to disk. When config.seed is set, image k of job
+    config.task uses the seed seed + (task - 1) * n_images + k, so that the
+    images are reproducible and the jobs of a --multirun do not repeat them.
 
     Args:
         config: Hydra config object (see config/default.yaml for all keys).
@@ -116,11 +119,19 @@ def main(config):
     out_dir = os.path.join(config.io.path_origin, config.io.path)
     os.makedirs(out_dir, exist_ok=True)
     generator = build_generator(config)
+    seed = config.get("seed")
+    first_index = (config.task - 1) * config.n_images
 
-    for _ in range(config.n_images):
+    for k in range(config.n_images):
         t0 = time()
-        image = generate_image(generator, config)
-        filename = os.path.join(out_dir, f"im_{int(100 * clock_gettime(CLOCK_MONOTONIC))}.png")
+        if seed is not None:
+            index = first_index + k
+            set_seed(seed + index)
+            image = generate_image(generator, config)
+            filename = os.path.join(out_dir, f"im_{index:04d}.png")
+        else:
+            image = generate_image(generator, config)
+            filename = os.path.join(out_dir, f"im_{int(100 * clock_gettime(CLOCK_MONOTONIC))}.png")
         skio.imsave(filename, image)
         logger.info("Image saved in %.2fs → %s", time() - t0, filename)
 
