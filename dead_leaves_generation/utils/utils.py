@@ -40,10 +40,16 @@ def normalize(x):
     """
     function that normalizes an image between 0 and 1
 
+    A constant image (e.g. a grid crop without any line, or a sinusoid crop
+    saturated everywhere) has no range to normalise: it is mapped to 1.
+
     Args:
         x numpy array: input image
     """
-    x = (x-x.min())/(x.max()-x.min())
+    lo, hi = x.min(), x.max()
+    if hi == lo:
+        return np.ones(x.shape)
+    x = (x-lo)/(hi-lo)
     return(x)
 
 def theoretical_number_disks(delta,r_min,r_max,width,alpha):
