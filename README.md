@@ -18,6 +18,25 @@ Even though Deep Neural Networks (NN) are extremely powerful for image restorati
 | :------------------------------------------------------------------------------: | :--------------------------------------------------------------------: |
 |                        **Vibrant Leaves examples**                        |                          Dead Leaves examples                          |
 
+## Try it: the Vibrant Leaves Generator app
+
+<p align="center"><img src="readme_images/app.jpg" width="820" alt="The Vibrant Leaves Generator app: parameter menu on the left, a sample of 9 generated images on the right"></p>
+
+The easiest way to explore the generator is the Vibrant Leaves Generator, a small web app that runs on your machine. After installing the dependencies (see [Usage](#usage-of-this-repository); Python 3.12 or 3.13), start it from the repository root:
+
+```
+python app.py
+```
+
+and open http://127.0.0.1:7860 in your browser. You can:
+
+- pick the shape type and the texture types from icons, and set the share of each texture type by dragging the separators of a single bar;
+- adjust the leaf size range, the 1/f slope of the noise, pattern warps and perspective, colours, depth of field and image size;
+- generate a sample of 9 images in a second or two. Seeds are fixed, so changing a parameter shows its effect on the same images;
+- once you are happy with the sample, generate the full dataset of 1000 images with the same parameters. It is saved with its config, so it can be regenerated or extended with `image_generation.py`.
+
+Colours are sampled from natural images: set the colour image directory in the menu (we use the [Waterloo Exploration Database](https://ece.uwaterloo.ca/~k29ma/exploration/)). See [Interactive app](#interactive-app-vibrant-leaves-generator) for more options (remote server, number of workers, output folder).
+
 ## Usage of this repository
 
 The main contribution here corresponds to the data generation code. We also include training and testing code, which was taken from the original repositories of DRUNet and FFDNet. To generate dead leaves images, we first need to install a few python libraries:
