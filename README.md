@@ -20,10 +20,11 @@ Even though Deep Neural Networks (NN) are extremely powerful for image restorati
 
 ## Try it: the Vibrant Leaves Generator app
 
-<p align="center">
-  <video src="https://github.com/rachddou/DeadLeavesPlus/raw/main/readme_images/demo.mp4" width="820" controls muted playsinline></video>
-</p>
-<p align="center"><a href="readme_images/demo.mp4">▶ Watch the demo video (3 min)</a></p>
+
+
+https://github.com/user-attachments/assets/f6e7f7f1-5ad5-403d-8633-0baee3707fa8
+
+
 
 The easiest way to explore the generator is the Vibrant Leaves Generator, a small web app that runs on your machine. After installing the dependencies (see [Usage](#usage-of-this-repository); Python 3.12 or 3.13), start it from the repository root:
 
