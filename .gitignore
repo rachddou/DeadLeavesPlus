@@ -21,6 +21,7 @@ events.*
 *.txt
 
 !readme_images/*
+readme_images/*.mov
 !setup.sh
 !default.yaml
 __pycache__/
