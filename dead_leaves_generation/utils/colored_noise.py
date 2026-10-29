@@ -15,7 +15,7 @@ def _magnitude_1d(resolution, slope):
     return np.abs(f / resolution) ** slope
 
 
-def sample_color_noise(image,width,slope):
+def sample_color_noise(image,width,slope,region=None):
     """function that creates colored noise with a given slope in the frequency domain from the color histogram of an existing image
 
     Each channel of a white noise image (pixels drawn from a 50x50 patch of
@@ -26,6 +26,9 @@ def sample_color_noise(image,width,slope):
         image (_type_): source image for color histogram
         width (_type_): size of the texture image
         slope (_type_): slope of the magnitude map in the log domain
+        region (tuple, optional): (r0, r1, c0, c1) part of the texture that is
+            needed; the rest of the returned texture is left black. The noise is
+            still synthesised on the whole width x width grid. Defaults to None.
     """
     h,w = image.shape[0],image.shape[1]
     p = 50
@@ -46,4 +49,10 @@ def sample_color_noise(image,width,slope):
     impose_magnitude(spectrum, g, g[(-np.arange(width)) % width])
     y = sfft.irfft2(spectrum, s=(width, width), axes=(1, 2), overwrite_x=True)
 
-    return planes_to_uint8(y, y.mean(axis=(1, 2)), y.std(axis=(1, 2)), s, m)
+    mean, std = y.mean(axis=(1, 2)), y.std(axis=(1, 2))
+    if region is None:
+        return planes_to_uint8(y, mean, std, s, m)
+    r0, r1, c0, c1 = region
+    image = np.zeros((width, width, 3), dtype=np.uint8)
+    image[r0:r1, c0:c1] = planes_to_uint8(y[:, r0:r1, c0:c1], mean, std, s, m)
+    return image

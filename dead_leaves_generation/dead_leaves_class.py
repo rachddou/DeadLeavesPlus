@@ -12,7 +12,7 @@ from dead_leaves_generation.polygons_maker_bis import binary_polygon_generator, 
 from dead_leaves_generation.utils.texture_generation import bilevel_texture_mixer, sample_slope
 from dead_leaves_generation.utils.utils import theoretical_number_disks, linear_color_gradient
 from dead_leaves_generation.utils.colored_noise import sample_color_noise
-from dead_leaves_generation.utils.perspective import perspective_shift
+from dead_leaves_generation.utils.perspective import perspective_shift, perspective_source_box
 from dead_leaves_generation.utils.kernels import seed_numba
 
 logger = logging.getLogger(__name__)
@@ -111,16 +111,19 @@ class Textures:
         col = np.random.randint(0, max(1, self.src_w - 101))
         return self.img_source[row:row + 100, col:col + 100]
 
-    def generate_source_texture(self, texture_type, width=1000):
+    def generate_source_texture(self, texture_type, width=1000, region=None):
         """Generates a texture map from color noise or a bilevel texture mixer.
 
         Args:
             texture_type (str): "freq_noise", "texture_mixes", "sin" or "grid".
             width (int, optional): Size of the texture map. Defaults to 1000.
+            region (tuple, optional): (r0, r1, c0, c1) part of the texture that
+                is needed, the rest is left black. Defaults to None (all).
         """
         if texture_type == "freq_noise":
             slope = sample_slope(self.slope_range)
-            return sample_color_noise(self.random_patch_selection(), width=width, slope=slope)
+            return sample_color_noise(self.random_patch_selection(), width=width, slope=slope,
+                                      region=region)
 
         if texture_type == "texture_mixes":
             # 90% sin, 10% grid
@@ -143,7 +146,7 @@ class Textures:
             color_source_2=self.random_patch_selection(),
             single_color_1=single_color_1, single_color_2=single_color_2,
             mixing_types=mix_mode, width=width, warp=warp,
-            slope_range=self.slope_range)
+            slope_range=self.slope_range, region=region)
 
     def source_image_sampling(self):
         """Selects a random source image from the path directory.
@@ -189,8 +192,10 @@ class Textures:
         use_perspective = np.random.random() > 0.5
         if use_perspective and self.apply_perspective:
             logger.debug("Applying perspective shift")
-            # generated at twice the size: the perspective crop is width x width
-            res = self.generate_source_texture(texture_type, width=2 * width)
+            # generated at twice the size: the perspective crop is width x width.
+            # Only the part of the texture read by the perspective crop is made.
+            res = self.generate_source_texture(texture_type, width=2 * width,
+                                               region=perspective_source_box(2 * width))
             return perspective_shift(res)
         return self.generate_source_texture(texture_type, width=width)
 
