@@ -4,6 +4,13 @@ import cv2
 from dead_leaves_generation.utils.kernels import warp_bilinear_clipped
 
 
+# True: draw and blur the displacement fields exactly as the original
+# implementation (legacy generator, float64 blur), e.g. to compare images with
+# it. False (faster): numpy Generator draws, seeded from the legacy global
+# stream, and float32 blur; same distribution, the warped maps differ by < 1e-5.
+EXACT_ORIGINAL = False
+
+
 def generate_vector_field(shape):
     """
     function that generates the displacement maps of the distortion: white
@@ -17,13 +24,18 @@ def generate_vector_field(shape):
     - u the displacement map wrt x
     - v the displacement map wrt y
     """
-    u = np.random.normal(0.,1.,(shape,shape))
-    v = np.random.normal(0.,1.,(shape,shape))
+    if EXACT_ORIGINAL:
+        u = np.random.normal(0.,1.,(shape,shape))
+        v = np.random.normal(0.,1.,(shape,shape))
+    else:
+        rng = np.random.default_rng(np.random.randint(2 ** 31))
+        u = rng.standard_normal((shape,shape), dtype=np.float32)
+        v = rng.standard_normal((shape,shape), dtype=np.float32)
 
     s = np.random.randint(10,20)
     t = np.random.randint(5,s//2+1)
-    u = cv2.GaussianBlur(u,(61,61),sigmaX = s, borderType = cv2.BORDER_DEFAULT)
-    v = cv2.GaussianBlur(v,(61,61),sigmaX = s, borderType = cv2.BORDER_DEFAULT)
+    u = cv2.GaussianBlur(u,(61,61),sigmaX = s, borderType = cv2.BORDER_DEFAULT).astype(np.float64, copy=False)
+    v = cv2.GaussianBlur(v,(61,61),sigmaX = s, borderType = cv2.BORDER_DEFAULT).astype(np.float64, copy=False)
     u = (u-np.mean(u))*(t/np.std(u))
     v = (v-np.mean(v))*(t/np.std(v))
     return(u,v)

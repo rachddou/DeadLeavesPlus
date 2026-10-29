@@ -27,15 +27,21 @@ def make_rectangle_mask(radius):
     width = int(math.sqrt(ratio*area))
     length = int(math.sqrt(area/ratio))
     mask = np.zeros((length,length))
-    mask[int(length//2-width//2):int(length//2+width//2),:] +=1
+    # at least one row, for tiny rectangles (width == 1)
+    start = length//2-width//2
+    mask[start:max(start+1, length//2+width//2),:] +=1
 
     angle = random.uniform(0,180)
     mask = np.bool_(rotate_image(mask,angle))
     h,w = mask.shape
-    h_odd = 2*(h//2)-1
-    w_odd = 2*(w//2)-1
+    # odd size, at least 1 pixel
+    h_odd = max(1, 2*(h//2)-1)
+    w_odd = max(1, 2*(w//2)-1)
 
     mask = mask[:h_odd,:w_odd]
+    if not mask.any():
+        # the crop can miss the rectangle for radii of 1-2 pixels: keep one pixel
+        mask[h_odd//2, w_odd//2] = True
     return(mask)
 
 def sample_points_circle(n,radius):

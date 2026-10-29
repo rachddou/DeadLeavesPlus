@@ -39,6 +39,7 @@ post_process: ## depth-of-field and other post-processing
   downscale: True                  # 2x downsample the final image
 
 n_images: 10
+seed: null                         # integer = reproducible images (image k uses seed + k)
 image_size: 512
 image_type: "dead_leaves"          # "dead_leaves" | "textures"
 test: False                        # debug: one stack of 15000 shapes, no DoF

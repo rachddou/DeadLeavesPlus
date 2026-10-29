@@ -96,6 +96,11 @@ def main():
     args = parser.parse_args()
 
     from dead_leaves_generation import dead_leaves_class as fast
+    from dead_leaves_generation.utils import colored_noise, geometric_perturbation
+
+    def exact_original(on):
+        """Random draws and noise sizes exactly as the original (for comparison)."""
+        colored_noise.EXACT_ORIGINAL = geometric_perturbation.EXACT_ORIGINAL = on
 
     with tempfile.TemporaryDirectory() as tmp:
         extract_reference(args.ref, Path(tmp))
@@ -107,7 +112,9 @@ def main():
             t_ref, t_fast = [], []
             for seed in range(args.n):
                 a, ta = generate(ref, preset, args.image_dir, args.size, seed)
+                exact_original(True)
                 b, _ = generate(fast, preset, args.image_dir, args.size, seed, skip_hidden=False)
+                exact_original(False)
                 _, tb = generate(fast, preset, args.image_dir, args.size, seed)
                 diff = np.abs(a.astype(int) - b)
                 print(f"[{name}] seed {seed}: pixels differing {(diff.max(-1) > 0).mean():.2%}, "

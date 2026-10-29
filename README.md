@@ -86,6 +86,7 @@ post_process: ## depth-of-field and other post-processing
   downscale: True                  # 2x downsample the final image
 
 n_images: 10
+seed: null                         # integer = reproducible images (image k uses seed + k)
 image_size: 512
 image_type: "dead_leaves"          # "dead_leaves" | "textures"
 test: False                        # debug: one stack of 15000 shapes, no DoF
@@ -98,6 +99,16 @@ python image_generation.py --multirun task=1,2,3,4 hydra.launcher.n_jobs=4
 ```
 
 The first run compiles the numba kernels and caches them (a few seconds); run one short generation (`n_images=1`) before launching many jobs at once so that they do not all compile them.
+
+#### Interactive app: Vibrant Leaves Generator
+
+`app.py` is a small web app to explore the parameters and build a dataset. Pick the shape type and the texture types from icons, set the proportion of each texture type on a [0, 1] bar, adjust the radius range, depth of field, image size..., and generate a sample of 9 images. Once you are happy with the sample, "Generate full dataset" (after a confirmation) generates 1000 images with the same parameters.
+
+```
+python app.py
+```
+
+Then open http://127.0.0.1:7860 in a browser. The menu starts from `config/default.yaml`, and images are generated in parallel (`--workers N`, 10 by default) with the same code as `image_generation.py`. Seeds are fixed (image *i* uses seed *i*), and in the samples every leaf's geometry and fill have their own random streams, so samples made with different parameters are comparable (e.g. changing the textures does not move the leaves). Datasets use the faster single random stream. They are saved in a new folder `datasets/dataset_<date>_<time>/` (`--dataset-dir` to change it), together with a `config.yaml` of the parameters, which can be reused with `python image_generation.py --config-path <dataset folder> --config-name config`. Click the folder path shown on the page to open it in your file manager (macOS, Windows and Linux; when the app runs on a remote server, the path is copied to the clipboard instead). The generation goes on if the page is closed, and its progress shows again when the page is reopened. To run the app on a remote server, start it there and forward the port: `ssh -L 7860:localhost:7860 <server>`.
 
 #### How the generator works
 

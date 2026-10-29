@@ -12,9 +12,18 @@ from dead_leaves_generation.polygons_maker_bis import binary_polygon_generator, 
 from dead_leaves_generation.utils.texture_generation import bilevel_texture_mixer, sample_slope
 from dead_leaves_generation.utils.utils import theoretical_number_disks, linear_color_gradient
 from dead_leaves_generation.utils.colored_noise import sample_color_noise
-from dead_leaves_generation.utils.perspective import perspective_shift
+from dead_leaves_generation.utils.perspective import perspective_shift, perspective_source_box
+from dead_leaves_generation.utils.kernels import seed_numba
 
 logger = logging.getLogger(__name__)
+
+
+def _mix64(x):
+    """SplitMix64 finaliser: decorrelated 64-bit keys from consecutive integers."""
+    x &= 0xFFFFFFFFFFFFFFFF
+    x = ((x ^ (x >> 30)) * 0xBF58476D1CE4E5B9) & 0xFFFFFFFFFFFFFFFF
+    x = ((x ^ (x >> 27)) * 0x94D049BB133111EB) & 0xFFFFFFFFFFFFFFFF
+    return x ^ (x >> 31)
 
 
 @lru_cache(maxsize=256)
@@ -102,16 +111,19 @@ class Textures:
         col = np.random.randint(0, max(1, self.src_w - 101))
         return self.img_source[row:row + 100, col:col + 100]
 
-    def generate_source_texture(self, texture_type, width=1000):
+    def generate_source_texture(self, texture_type, width=1000, region=None):
         """Generates a texture map from color noise or a bilevel texture mixer.
 
         Args:
             texture_type (str): "freq_noise", "texture_mixes", "sin" or "grid".
             width (int, optional): Size of the texture map. Defaults to 1000.
+            region (tuple, optional): (r0, r1, c0, c1) part of the texture that
+                is needed, the rest is left black. Defaults to None (all).
         """
         if texture_type == "freq_noise":
             slope = sample_slope(self.slope_range)
-            return sample_color_noise(self.random_patch_selection(), width=width, slope=slope)
+            return sample_color_noise(self.random_patch_selection(), width=width, slope=slope,
+                                      region=region)
 
         if texture_type == "texture_mixes":
             # 90% sin, 10% grid
@@ -134,16 +146,18 @@ class Textures:
             color_source_2=self.random_patch_selection(),
             single_color_1=single_color_1, single_color_2=single_color_2,
             mixing_types=mix_mode, width=width, warp=warp,
-            slope_range=self.slope_range)
+            slope_range=self.slope_range, region=region)
 
     def source_image_sampling(self):
         """Selects a random source image from the path directory.
         Updates img_source, src_h and src_w.
         """
         if not self.files:
-            self.files = [os.path.join(self.path, f)
-                          for f in os.listdir(self.path)
-                          if os.path.isfile(os.path.join(self.path, f))]
+            # sorted: os.listdir's order depends on the file system, and the
+            # same random draw must pick the same image everywhere
+            self.files = sorted(os.path.join(self.path, f)
+                                for f in os.listdir(self.path)
+                                if os.path.isfile(os.path.join(self.path, f)))
         ind = random.randint(0, len(self.files) - 1)
         self.img_source = skio.imread(self.files[ind])
         self.src_h = self.img_source.shape[0]
@@ -178,8 +192,10 @@ class Textures:
         use_perspective = np.random.random() > 0.5
         if use_perspective and self.apply_perspective:
             logger.debug("Applying perspective shift")
-            # generated at twice the size: the perspective crop is width x width
-            res = self.generate_source_texture(texture_type, width=2 * width)
+            # generated at twice the size: the perspective crop is width x width.
+            # Only the part of the texture read by the perspective crop is made.
+            res = self.generate_source_texture(texture_type, width=2 * width,
+                                               region=perspective_source_box(2 * width))
             return perspective_shift(res)
         return self.generate_source_texture(texture_type, width=width)
 
@@ -209,6 +225,12 @@ class Deadleaves(Textures):
             same; only the random stream differs. With skip_hidden=False the
             random numbers are drawn in the same order as the original
             implementation.
+        independent_streams (bool): Draw the geometry (radius, type, position,
+            shape) and the fill (colour, texture) of every leaf from their own
+            random streams, seeded from the image's stream and the leaf's
+            number. Changing the texture parameters then changes the textures
+            but not the leaves' geometry or colours, which makes images
+            generated with different parameters comparable.
     """
 
     def __init__(self, rmin=1, rmax=1000, power_law_exponent=3, width=1000,
@@ -218,7 +240,7 @@ class Deadleaves(Textures):
                  slope_range=None, use_texture=True,
                  online_generation=False, apply_warp=True,
                  perspective=True,
-                 img_source=None, skip_hidden=True):
+                 img_source=None, skip_hidden=True, independent_streams=False):
         # the source image is sampled in compose_dead_leaves_depth_of_field()
         super().__init__(width=width, use_natural_images=use_natural_images, path=path,
                          types=types, type_weights=type_weights, slope_range=slope_range,
@@ -232,6 +254,9 @@ class Deadleaves(Textures):
         self.n_textures = 10
         self.textures = []
         self.skip_hidden = skip_hidden
+        self.independent_streams = independent_streams
+        self._stream_base = 0
+        self._n_stacks = 0
         self.clear()
         self.update_leaves_size_parameters(rmin, rmax)
 
@@ -468,6 +493,18 @@ class Deadleaves(Textures):
             return None
         return placed + (radius,)
 
+    # kinds of independent random streams
+    _GEOMETRY, _FILL, _TEXTURE_DICT = 0, 1, 2
+
+    def _seed_stream(self, kind, stack, index):
+        """Seeds numpy's (and numba's) generator for one stream, see
+        independent_streams."""
+        key = _mix64(_mix64(_mix64(self._stream_base * 4 + kind) + stack) + index)
+        np.random.seed(key & 0xFFFFFFFF)
+        if kind != self._GEOMETRY:
+            # textures also draw from numba's generator
+            seed_numba(key >> 33)
+
     def generate_stack(self, n_shapes):
         """Draws n_shapes shapes on the current canvas, front to back.
 
@@ -478,13 +515,24 @@ class Deadleaves(Textures):
             tuple: (resulting_image uint8, covered uint8), covered being 1 where
             a shape was drawn and 0 elsewhere (3 channels).
         """
-        for _ in range(n_shapes):
+        stack = self._n_stacks
+        self._n_stacks += 1
+        reseed_geometry = True
+        for index in range(n_shapes):
             if self.skip_hidden and self.n_uncovered == 0:
                 break
+            if self.independent_streams and reseed_geometry:
+                # the geometry stream continues through hidden shapes (which
+                # depend on the geometry only) and restarts after each fill
+                self._seed_stream(self._GEOMETRY, stack, index)
+                reseed_geometry = False
             placed = self.place_next_shape()
             if placed is None:
                 continue
             row_min, row_max, col_min, col_max, visible_mask, radius = placed
+            if self.independent_streams:
+                self._seed_stream(self._FILL, stack, index)
+                reseed_geometry = True
             fill = self.shape_fill(visible_mask, radius)
             np.copyto(self.resulting_image[row_min:row_max, col_min:col_max], fill,
                       where=visible_mask[..., None])
@@ -518,6 +566,10 @@ class Deadleaves(Textures):
                 raise RuntimeError(
                     "Could not load a 3-channel source image after 10 attempts.")
 
+        if self.independent_streams:
+            self._stream_base = np.random.randint(2 ** 31)
+            self._n_stacks = 0
+            self._seed_stream(self._TEXTURE_DICT, 0, 0)
         if self.use_texture:
             if not self.online_generation:
                 if fetch:

@@ -407,3 +407,10 @@ def gaussian_threshold(mask, fw, thresh):
         for j in range(w):
             out[i, j] = out_t[j, i] > thresh
     return out
+
+
+@njit(cache=True)
+def seed_numba(seed):
+    """Seeds the random generator used inside numba-compiled functions, which
+    is separate from numpy's global generator."""
+    np.random.seed(seed)
