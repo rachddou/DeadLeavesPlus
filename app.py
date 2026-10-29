@@ -18,6 +18,8 @@ import json
 import multiprocessing as mp
 import os
 import random
+import subprocess
+import sys
 import threading
 import time
 from datetime import datetime
@@ -312,6 +314,21 @@ class DatasetJob:
                 "elapsed": end - self.started, "out_dir": str(self.out_dir)}
 
 
+def open_folder(path):
+    """Opens a folder in the file manager of the machine running the app.
+
+    Raises:
+        OSError / subprocess.SubprocessError: when it cannot be opened (e.g. on
+        a remote server without a desktop).
+    """
+    if os.name == "nt":
+        os.startfile(path)
+    else:
+        opener = "open" if sys.platform == "darwin" else "xdg-open"
+        subprocess.run([opener, str(path)], check=True, timeout=10,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 # ---------------------------------------------------------------------------
 # HTTP server
 # ---------------------------------------------------------------------------
@@ -369,6 +386,17 @@ class Handler(BaseHTTPRequestHandler):
             if job:
                 job.cancel()
             self._send_json(job.status() if job else {"state": "idle"})
+        elif self.path == "/api/dataset/open":
+            # only the folder of the current dataset can be opened
+            job = Handler.dataset_job
+            if not job:
+                return self._send_json({"error": "No dataset yet."}, HTTPStatus.NOT_FOUND)
+            try:
+                open_folder(job.out_dir)
+            except (OSError, subprocess.SubprocessError):
+                return self._send_json({"error": "Cannot open the folder on this machine."},
+                                       HTTPStatus.INTERNAL_SERVER_ERROR)
+            self._send_json({"opened": str(job.out_dir)})
         else:
             self._send_json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 

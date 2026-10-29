@@ -124,6 +124,11 @@
   .progress div { height: 100%; width: 0; background: var(--accent); transition: width .4s; }
   .link { appearance: none; border: 0; background: none; color: var(--danger); font: inherit; cursor: pointer; padding: 0; text-decoration: underline; }
   #dataset-result { margin-top: 8px; font-size: 13px; word-break: break-all; }
+  .path-link { appearance: none; border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer;
+               text-decoration: underline; text-underline-offset: 2px; word-break: break-all; text-align: left; }
+  .path-link:hover { text-decoration-thickness: 2px; }
+  .path-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+  #open-message { display: block; margin-top: 4px; color: var(--muted); }
   #dataset-result.ok { color: var(--accent); }
   #dataset-result.bad { color: var(--danger); }
   dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--panel); color: var(--text); padding: 20px 22px; max-width: min(440px, calc(100vw - 32px)); box-shadow: 0 10px 40px rgba(0,0,0,.25); }
@@ -637,14 +642,45 @@ function showDataset(job = lastJob) {
   $("dataset-text").textContent = `${job.done} / ${job.total} images · ${fmtTime(job.elapsed)}` + (eta !== null && running ? ` · about ${fmtTime(eta)} left` : "");
   const result = $("dataset-result");
   result.className = "";
+  const message = $("open-message") ? $("open-message").textContent : "";
   if (running) {
-    result.textContent = `Saving to ${job.out_dir}`;
+    renderResult(result, "Saving to ", job.out_dir, "", message);
   } else if (job.state === "done") {
     result.className = job.errors ? "bad" : "ok";
-    result.textContent = `${job.done} images saved to ${job.out_dir} in ${fmtTime(job.elapsed)}` + (job.errors ? ` (${job.errors} failed: ${job.last_error})` : "");
+    renderResult(result, `${job.done} images saved to `, job.out_dir,
+                 ` in ${fmtTime(job.elapsed)}` + (job.errors ? ` (${job.errors} failed: ${job.last_error})` : ""), message);
   } else if (job.state === "cancelled") {
     result.className = "bad";
-    result.textContent = `Cancelled: ${job.done} images saved to ${job.out_dir}`;
+    renderResult(result, `Cancelled: ${job.done} images saved to `, job.out_dir, "", message);
+  }
+}
+
+// text with the dataset folder as a link that opens it in the file manager
+function renderResult(el, before, path, after, message) {
+  const link = document.createElement("button");
+  link.type = "button";
+  link.className = "path-link";
+  link.textContent = path;
+  link.title = "Open the folder";
+  link.addEventListener("click", () => openFolder(path));
+  const note = document.createElement("span");
+  note.id = "open-message";
+  note.textContent = message;
+  el.replaceChildren(before, link, after, note);
+}
+
+async function openFolder(path) {
+  $("open-message").textContent = "";
+  try {
+    const response = await fetch("/api/dataset/open", { method: "POST" });
+    if (response.ok) return;
+    throw new Error((await response.json()).error);
+  } catch (err) {
+    // e.g. the app runs on a remote server: give the path instead
+    let copied = false;
+    try { await navigator.clipboard.writeText(path); copied = true; } catch (_) {}
+    // the result line may have been re-rendered meanwhile: look the note up again
+    $("open-message").textContent = err.message + (copied ? " The path was copied to the clipboard." : "");
   }
 }
 

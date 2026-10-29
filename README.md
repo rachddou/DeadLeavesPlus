@@ -107,7 +107,7 @@ The first run compiles the numba kernels and caches them (a few seconds); run on
 python app.py
 ```
 
-Then open http://127.0.0.1:7860 in a browser. The menu starts from `config/default.yaml`, and images are generated in parallel (`--workers N`, 10 by default) with the same code as `image_generation.py`. Datasets are saved in a new folder `datasets/dataset_<date>_<time>/` (`--dataset-dir` to change it), together with a `config.yaml` of the parameters, which can be reused with `python image_generation.py --config-path <dataset folder> --config-name config`. The generation goes on if the page is closed, and its progress shows again when the page is reopened. To run the app on a remote server, start it there and forward the port: `ssh -L 7860:localhost:7860 <server>`.
+Then open http://127.0.0.1:7860 in a browser. The menu starts from `config/default.yaml`, and images are generated in parallel (`--workers N`, 10 by default) with the same code as `image_generation.py`. Datasets are saved in a new folder `datasets/dataset_<date>_<time>/` (`--dataset-dir` to change it), together with a `config.yaml` of the parameters, which can be reused with `python image_generation.py --config-path <dataset folder> --config-name config`. Click the folder path shown on the page to open it in your file manager (macOS, Windows and Linux; when the app runs on a remote server, the path is copied to the clipboard instead). The generation goes on if the page is closed, and its progress shows again when the page is reopened. To run the app on a remote server, start it there and forward the port: `ssh -L 7860:localhost:7860 <server>`.
 
 #### How the generator works
 
