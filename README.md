@@ -1,63 +1,64 @@
-# **VibrantLeaves : A principled parametric image generator for training deep restoration models**
-
-|                                          ![teaser](readme_images/teaser.png)                                          |
-| :------------------------------------------------------------------------------------------------------------------: |
-| Image denoising comparison of different versions of DRUNet trained on synthetic images vs real-world natural images. |
-
-**VibrantLeaves : A principled parametric image generator for training deep restoration models**
+# VibrantLeaves: a principled parametric image generator for training deep restoration models
 
 [Raphael Achddou](https://rachddou.github.io/), [Yann Gousseau](https://perso.telecom-paristech.fr/gousseau/), [Said Ladjal](https://perso.telecom-paristech.fr/ladjal/), [Sabine Susstrunk](https://www.epfl.ch/labs/ivrl/people/susstrunk/)
 
 [![arXiv](https://img.shields.io/badge/arXiv-2504.10201-red)](https://arxiv.org/pdf/2504.10201)
 
-## Abstract
+![VibrantLeaves image generation pipeline](readme_images/pipeline.png)
 
-Even though Deep Neural Networks (NN) are extremely powerful for image restoration tasks, they have several limitations. They are poorly understood and suffer from strong biases inherited from the training sets. One way to address these shortcomings is to have a better control over the training sets, in particular by using synthetic sets. In this paper, we propose a synthetic image generator relying on a few simple principles. In particular, we focus on geometric modeling, textures, and a simple modeling of image acquisition. These properties, integrated in a classical Dead Leaves model, enable the creation of efficient training sets. Standard image denoising and super-resolution networks can be trained on such datasets, reaching performance almost on par with training on natural image datasets. As a first step towards explainability, we provide a careful analysis of the considered principles, identifying which image properties are necessary to obtain good performances. Besides, such training also yields better robustness to various geometric and radiometric perturbations of the test sets.
+VibrantLeaves generates synthetic images for training image restoration networks. It builds on the classical dead leaves model, where random shapes occlude each other, and adds three ingredients:
 
-| ![dl++](readme_images/im_first_page_2.png)  ![dl++](readme_images/im_first_page.png) | ![dl](readme_images/im_69809436.png)  ![dl](readme_images/im_69810650.png) |
-| :------------------------------------------------------------------------------: | :--------------------------------------------------------------------: |
-|                        **Vibrant Leaves examples**                        |                          Dead Leaves examples                          |
+- **Geometry:** shapes are concave polygons, the concave hull of random points, optionally smoothed.
+- **Textures:** pseudo-periodic patterns and 1/f micro-textures, coloured from natural images.
+- **Depth of field:** three stacks of shapes (background, middle ground, foreground), with blurred background and foreground.
 
-## Try it: the Vibrant Leaves Generator app
+Denoising and super-resolution networks trained only on these images come close to networks trained on natural images, and are more robust to geometric and radiometric perturbations of the test images.
 
+## What's in this repository
 
+| Path | Contents |
+|---|---|
+| [`dead_leaves_generation/`](dead_leaves_generation) | The image generator: shapes, textures and depth-of-field composition |
+| [`app.py`](app.py) | **Vibrant Leaves Generator**, a web app to explore the parameters and generate datasets |
+| [`image_generation.py`](image_generation.py), [`config/default.yaml`](config/default.yaml) | Command-line dataset generation |
+| `launcher_train*.py`, [`train_test/`](train_test) | Training of denoising (DRUNet, FFDNet), deblurring and inpainting networks |
+| [`launcher_test.py`](launcher_test.py), [`pnp_reconstruction.py`](pnp_reconstruction.py) | Evaluation (denoising, deblurring, inpainting, super-resolution) and DPIR plug-and-play reconstruction |
+| [`scripts/compare_with_reference.py`](scripts/compare_with_reference.py) | Checks the generator against its original implementation |
 
-https://github.com/user-attachments/assets/f6e7f7f1-5ad5-403d-8633-0baee3707fa8
+## Installation
 
-
-
-The easiest way to explore the generator is the Vibrant Leaves Generator, a small web app that runs on your machine. After installing the dependencies (see [Usage](#usage-of-this-repository); Python 3.12 or 3.13), start it from the repository root:
-
-```
-python app.py
-```
-
-and open http://127.0.0.1:7860 in your browser. You can:
-
-- pick the shape type and the texture types from icons, and set the share of each texture type by dragging the separators of a single bar;
-- adjust the leaf size range, the 1/f slope of the noise, pattern warps and perspective, colours, depth of field and image size;
-- generate a sample of 9 images in a second or two. Seeds are fixed, so changing a parameter shows its effect on the same images;
-- once you are happy with the sample, generate the full dataset of 1000 images with the same parameters. It is saved with its config, so it can be regenerated or extended with `image_generation.py`.
-
-Colours are sampled from natural images: set the colour image directory in the menu (we use the [Waterloo Exploration Database](https://ece.uwaterloo.ca/~k29ma/exploration/)). See [Interactive app](#interactive-app-vibrant-leaves-generator) for more options (remote server, number of workers, output folder).
-
-## Usage of this repository
-
-The main contribution here corresponds to the data generation code. We also include training and testing code, which was taken from the original repositories of DRUNet and FFDNet. To generate dead leaves images, we first need to install a few python libraries:
+Python 3.12 or 3.13 (Hydra 1.3 does not run on Python 3.14):
 
 ```
 sh setup.sh
 ```
 
-### Data Generation
+Shape colours are sampled from natural images; we use the [Waterloo Exploration Database](https://ece.uwaterloo.ca/~k29ma/exploration/).
 
-Generation needs Python 3.12 or 3.13 (Hydra 1.3 does not run on Python 3.14). Set the directory of colour source images (we use the [Waterloo Exploration Database](https://ece.uwaterloo.ca/~k29ma/exploration/)), either in `config/default.yaml` or on the command line, and run:
+## Vibrant Leaves Generator app
+
+https://github.com/user-attachments/assets/f6e7f7f1-5ad5-403d-8633-0baee3707fa8
+
+```
+python app.py
+```
+
+Then open http://127.0.0.1:7860. From the menu you can:
+
+- pick the shape type and the texture types from icons, and set the share of each texture type by dragging the separators of a single bar;
+- adjust the leaf size range, the 1/f slope, pattern warps, perspective, colours, depth of field and image size;
+- generate a sample of 9 images in a second or two. Seeds are fixed, and each leaf's geometry and fill have their own random streams, so changing a parameter shows its effect on the same images (changing the textures does not move the leaves);
+- generate the full dataset of 1000 images with the parameters of the sample. It is saved in `datasets/dataset_<date>_<time>/` with a `config.yaml`, from which `python image_generation.py --config-path <dataset folder> --config-name config` regenerates or extends it. Click the folder path on the page to open it.
+
+Options: `--workers N` (parallel generation processes, 10 by default), `--dataset-dir` (where datasets are saved), `--host` / `--port`. To use it on a remote server, start it there and forward the port: `ssh -L 7860:localhost:7860 <server>`.
+
+## Generating datasets from the command line
 
 ```
 python image_generation.py color.image_dir=path/to/waterlooDB/
 ```
 
-The images are saved in `io.path_origin/io.path` (`datasets/vibrant_leaves/` by default). Any parameter of `config/default.yaml` can be changed in the file or overridden on the command line with Hydra's `key=value` syntax. For example, classical dead leaves (disks, flat colours and gradients, no depth of field):
+Images are saved in `io.path_origin/io.path` (`datasets/vibrant_leaves/` by default). Every parameter of [`config/default.yaml`](config/default.yaml) can be overridden with Hydra's `key=value` syntax. For example, classical dead leaves (disks, flat colours and gradients, no depth of field):
 
 ```
 python image_generation.py shape.shape_type=disk shape.multiple_shapes=False shape.radius_min=2 \
@@ -65,7 +66,16 @@ python image_generation.py shape.shape_type=disk shape.multiple_shapes=False sha
     post_process.downscale=True io.path=dead_leaves/
 ```
 
-`config/default.yaml` contains the VibrantLeaves settings:
+To generate in parallel, launch several jobs; each one generates `n_images` images (with `seed` set, job `task` uses its own range of seeds):
+
+```
+python image_generation.py --multirun task=1,2,3,4 hydra.launcher.n_jobs=4
+```
+
+The first run compiles the numba kernels and caches them (a few seconds); run a short generation (`n_images=1`) before launching many jobs at once.
+
+<details>
+<summary><code>config/default.yaml</code> (VibrantLeaves settings)</summary>
 
 ```yaml
 defaults:
@@ -115,105 +125,68 @@ image_type: "dead_leaves"          # "dead_leaves" | "textures"
 test: False                        # debug: one stack of 15000 shapes, no DoF
 ```
 
-To generate in parallel, launch several jobs with Hydra's joblib launcher; `task` only distinguishes the jobs, each one generates `n_images` images:
+</details>
 
-```
-python image_generation.py --multirun task=1,2,3,4 hydra.launcher.n_jobs=4
-```
+In the code, `Deadleaves.compose_dead_leaves_depth_of_field` builds the three layers, `Deadleaves.generate_stack` places the shapes front to back (each new shape only paints the pixels not covered yet), and `Textures.generate_texture` makes the textures. Shapes entirely hidden by closer ones are not generated, which gives the same images in distribution, much faster.
 
-The first run compiles the numba kernels and caches them (a few seconds); run one short generation (`n_images=1`) before launching many jobs at once so that they do not all compile them.
+## Datasets
 
-#### Interactive app: Vibrant Leaves Generator
+A ready-made VibrantLeaves dataset will be released soon.
 
-`app.py` is a small web app to explore the parameters and build a dataset. Pick the shape type and the texture types from icons, set the proportion of each texture type on a [0, 1] bar, adjust the radius range, depth of field, image size..., and generate a sample of 9 images. Once you are happy with the sample, "Generate full dataset" (after a confirmation) generates 1000 images with the same parameters.
+## Training
 
-```
-python app.py
-```
-
-Then open http://127.0.0.1:7860 in a browser. The menu starts from `config/default.yaml`, and images are generated in parallel (`--workers N`, 10 by default) with the same code as `image_generation.py`. Seeds are fixed (image *i* uses seed *i*), and in the samples every leaf's geometry and fill have their own random streams, so samples made with different parameters are comparable (e.g. changing the textures does not move the leaves). Datasets use the faster single random stream. They are saved in a new folder `datasets/dataset_<date>_<time>/` (`--dataset-dir` to change it), together with a `config.yaml` of the parameters, which can be reused with `python image_generation.py --config-path <dataset folder> --config-name config`. Click the folder path shown on the page to open it in your file manager (macOS, Windows and Linux; when the app runs on a remote server, the path is copied to the clipboard instead). The generation goes on if the page is closed, and its progress shows again when the page is reopened. To run the app on a remote server, start it there and forward the port: `ssh -L 7860:localhost:7860 <server>`.
-
-#### How the generator works
-
-An image is the composition of three layers of "leaves" (`Deadleaves.compose_dead_leaves_depth_of_field`): a blurred background, an in-focus middle layer and a blurred foreground. Each layer is a stack of shapes (polygons, disks or rectangles) whose radii follow a power law between `radius_min` and `radius_max` (`Deadleaves.generate_stack`). Shapes are placed front to back: each new shape only paints the pixels that are not covered yet. Small shapes get a flat colour picked in a source image; larger ones get a colour gradient or a texture (sinusoidal patterns, coloured 1/f noise or mixes of both, optionally warped and seen in perspective).
-
-Shapes that end up entirely hidden behind previously placed shapes do not change the image, so they are not generated (`skip_hidden=True`, the default); this gives the same images, in distribution, much faster. `scripts/compare_with_reference.py` checks the generator against the original implementation.
-
-### Datasets
-
-If you don't want to bother with launching data generation, here's a link to download the dataset: [UNRELEASED(WIP)]()
-
-### Training
-
-Once the images are generated, you can run the command `.jobs/train.sh`
-
-This will create a directory where the weights are stored inside `TRAINING_LOGS/`
-
-### Testing
-
-All four restoration tasks — **denoising**, **deblurring**, **inpainting**, and **super-resolution** — are evaluated through a single entry point:
+Denoising (DRUNet or FFDNet): extract patches into HDF5 files, then train. Checkpoints and logs go to `TRAINING_LOGS/<log_dir>/`.
 
 ```bash
-python launcher_test.py --task <denoise|deblur|inpaint|sr> [options]
+python preprocessing.py --trainset_dir datasets/vibrant_leaves/ --valset_dir datasets/test_sets/Kodak24 \
+    --suffix .png --filenames train_vl.h5 val.h5
+python launcher_train.py --model DRUNet --filenames train_vl.h5 val.h5 --log_dir drunet_vl
 ```
 
-Pre-trained weights for denoising, deblurring and inpainting are available [here](https://drive.switch.ch/index.php/s/Bmdq0lOHylwgb9d). Download the [testsets](https://drive.switch.ch/index.php/s/jfh3N5ZNv1KVPpP) and place them in the `datasets/test_sets/` folder.
-
-Pre-trained SwinIR weights for super-resolution are available [here](https://drive.switch.ch/index.php/s/uCdAIpnKEfE09xJ); place them under `sr_models/swin_ir_x2/` and `sr_models/swin_ir_x4/`.
-
-**Denoising** — evaluate a DRUNet model on one or several datasets at multiple noise levels:
+Deblurring (Levin09 kernels) and inpainting train directly from image folders:
 
 ```bash
-python launcher_test.py --task denoise \
-    --model_path TRAINING_LOGS/my_model/ckpt.pth \
-    --inputs datasets/test_sets/Kodak24 datasets/test_sets/CBSD68 \
-    --noise_sigmas 15 25 50 \
+python launcher_train_deblur.py --train_dir datasets/vibrant_leaves/ --val_dir datasets/test_sets/Kodak24 \
+    --kernel_path datasets/Levin09.mat
+python launcher_train_inpaint.py --train_dir datasets/vibrant_leaves/ --val_dir datasets/test_sets/Kodak24
+```
+
+Each launcher lists its options with `--help`.
+
+## Evaluation
+
+Pre-trained weights for [denoising, deblurring and inpainting](https://drive.switch.ch/index.php/s/Bmdq0lOHylwgb9d) and [SwinIR super-resolution](https://drive.switch.ch/index.php/s/uCdAIpnKEfE09xJ) (place them under `sr_models/swin_ir_x2/` and `sr_models/swin_ir_x4/`). Put the [test sets](https://drive.switch.ch/index.php/s/jfh3N5ZNv1KVPpP) in `datasets/test_sets/`.
+
+All four tasks use one entry point, `python launcher_test.py --task <denoise|deblur|inpaint|sr> [options]`:
+
+```bash
+# Denoising: DRUNet on several test sets and noise levels
+python launcher_test.py --task denoise --model_path TRAINING_LOGS/my_model/ckpt.pth \
+    --inputs datasets/test_sets/Kodak24 datasets/test_sets/CBSD68 --noise_sigmas 15 25 50 \
     --save_dir denoising/my_model
-```
-
-**Deblurring** — evaluate on a set of images using Levin09 blur kernels:
-
-```bash
-python launcher_test.py --task deblur \
-    --model_path TRAINING_LOGS/my_deblur_model/ckpt.pth \
-    --inputs datasets/test_sets/CBSD68 \
-    --kernel_path datasets/Levin09.mat \
-    --save_dir deblurring/my_model
-```
-
-**Super-resolution** — evaluate a lightweight SwinIR model at scale ×2 or ×4. LR images are generated on-the-fly from the HR ground truth using a MATLAB-equivalent bicubic downsampler. SR evaluation uses [KAIR](https://github.com/cszn/KAIR) (included as a git submodule); initialise it after cloning with `git submodule update --init --recursive`.
-
-```bash
-python launcher_test.py --task sr \
-    --scale 2 \
-    --model_path sr_models/swin_ir_x2/DL_E.pth \
-    --sr_hr_dirs Set5/original Set14/image_SRF_2/HR \
-    --sr_names   Set5          Set14 \
-    --save_dir   sr_x2/DL_E
-```
-
-To use pre-existing LR images instead of generating them on-the-fly, pass `--sr_lr_dirs` alongside `--sr_hr_dirs`.
-
-### DPIR Plug-and-Play reconstruction
-
-`pnp_reconstruction.py` implements the **DPIR** algorithm (Zhang et al., 2021) for inpainting and deblurring using a DRUNet denoiser as an implicit prior. DPIR uses Half-Quadratic Splitting (HQS) with a log-spaced decreasing noise schedule, driven by [DeepInverse](https://deepinv.github.io).
-
-For inpainting a TV-PGD warm start is computed first, then passed as initialisation to HQS. For deblurring the HQS solver is run directly from the pseudo-inverse.
-
-```bash
-# Inpainting (30% pixels kept)
-python pnp_reconstruction.py \
-    --task inpainting \
-    --inputs Set14/image_SRF_2/HR \
-    --model_path models_zoo/drunet_dl.pth \
-    --mask 0.3 --save --save_dir pnp_inpainting/drunet_dl
 
 # Deblurring with Levin09 kernels
-python pnp_reconstruction.py \
-    --task deblurring \
-    --inputs Set14/image_SRF_2/HR \
-    --model_path models_zoo/drunet_dl.pth \
-    --kernel_path datasets/Levin09.mat \
-    --noise_sigma 7 --save_dir pnp_deblurring/drunet_dl
+python launcher_test.py --task deblur --model_path TRAINING_LOGS/my_deblur_model/ckpt.pth \
+    --inputs datasets/test_sets/CBSD68 --kernel_path datasets/Levin09.mat --save_dir deblurring/my_model
+
+# Super-resolution (lightweight SwinIR, x2 or x4)
+python launcher_test.py --task sr --scale 2 --model_path sr_models/swin_ir_x2/DL_E.pth \
+    --sr_hr_dirs Set5/original Set14/image_SRF_2/HR --sr_names Set5 Set14 --save_dir sr_x2/DL_E
 ```
 
+For super-resolution, low-resolution images are generated from the ground truth with a MATLAB-equivalent bicubic downsampler (`--sr_lr_dirs` to use existing ones). It relies on [KAIR](https://github.com/cszn/KAIR), a git submodule: run `git submodule update --init --recursive` after cloning.
+
+### DPIR plug-and-play reconstruction
+
+[`pnp_reconstruction.py`](pnp_reconstruction.py) implements DPIR (Zhang et al., 2021) for inpainting and deblurring, with a DRUNet denoiser as prior: half-quadratic splitting with a decreasing noise schedule, using [DeepInverse](https://deepinv.github.io). Inpainting starts from a TV-PGD warm start, deblurring from the pseudo-inverse.
+
+```bash
+# Inpainting (30% of the pixels kept)
+python pnp_reconstruction.py --task inpainting --inputs Set14/image_SRF_2/HR \
+    --model_path models_zoo/drunet_dl.pth --mask 0.3 --save --save_dir pnp_inpainting/drunet_dl
+
+# Deblurring with Levin09 kernels
+python pnp_reconstruction.py --task deblurring --inputs Set14/image_SRF_2/HR \
+    --model_path models_zoo/drunet_dl.pth --kernel_path datasets/Levin09.mat \
+    --noise_sigma 7 --save_dir pnp_deblurring/drunet_dl
+```
