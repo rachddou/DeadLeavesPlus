@@ -3,11 +3,13 @@ chosen in a menu, then a full dataset of 1000 images with the same parameters.
 
 The page (app_ui/index.html) is served by a small HTTP server; the images are
 generated in parallel worker processes with the same code as image_generation.py.
-Image i uses the seed i, so that samples made with different parameters are
-comparable and datasets reproducible. Sample images are streamed back to the
-page as they are ready; dataset images are saved in a new folder of config
-io.path_origin (datasets/ by default), together with the config used, from
-which image_generation.py regenerates the same images.
+Image i uses the seed i. Samples also draw the geometry and the fill of each
+leaf from separate random streams, so that samples made with different
+parameters are comparable (e.g. changing the textures does not move the
+leaves); datasets use the faster single stream. Sample images are streamed back
+to the page as they are ready; dataset images are saved in a new folder of
+config io.path_origin (datasets/ by default), together with the config used,
+from which image_generation.py regenerates the same images.
 
 usage:
     python app.py [--host 127.0.0.1] [--port 7860] [--workers N]
@@ -49,20 +51,20 @@ ICON_SIZE = 128
 # Worker processes
 # ---------------------------------------------------------------------------
 
-def _generate(config, seed):
+def _generate(config, seed, independent_streams):
     """Generates one image (runs in a worker process)."""
     from dead_leaves_generation.utils.utils import set_seed
     from image_generation import build_generator, generate_image
 
     config = OmegaConf.create(config)
-    generator = build_generator(config)
+    generator = build_generator(config, independent_streams)
     set_seed(seed)
     return generate_image(generator, config)
 
 
 def _generate_to_file(config, seed, path):
     """Generates one image and saves it (runs in a worker process)."""
-    Image.fromarray(_generate(config, seed)).save(path)
+    Image.fromarray(_generate(config, seed, independent_streams=False)).save(path)
 
 
 def _texture_icon(texture_type, image_dir):
@@ -86,7 +88,7 @@ def _warm_up():
                              type_weights=[1 / len(TEXTURE_TYPES)] * len(TEXTURE_TYPES))
     try:
         for seed in range(3):
-            _generate(config, seed)
+            _generate(config, seed, independent_streams=True)
     except Exception:  # the real error, if any, shows up when generating
         pass
 
@@ -429,9 +431,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/x-ndjson")
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
-        # fixed seeds: samples made with different parameters are comparable
+        # fixed seeds and independent streams: samples made with different
+        # parameters are comparable
         seeds = range(N_IMAGES)
-        futures = {self.pool.submit(_generate, config, seed): i for i, seed in enumerate(seeds)}
+        futures = {self.pool.submit(_generate, config, seed, True): i
+                   for i, seed in enumerate(seeds)}
         try:
             for future in cf.as_completed(futures):
                 line = {"index": futures[future]}

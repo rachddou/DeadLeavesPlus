@@ -13,11 +13,14 @@ from dead_leaves_generation.utils.utils import set_seed
 logger = logging.getLogger(__name__)
 
 
-def build_generator(config):
+def build_generator(config, independent_streams=False):
     """Instantiates the image generator described by the config.
 
     Args:
         config: config object (see config/default.yaml for all keys).
+        independent_streams (bool): Separate random streams for the geometry
+            and the fill of each leaf (see Deadleaves), slower but makes images
+            generated with different parameters comparable.
 
     Returns:
         Deadleaves or Textures generator.
@@ -39,6 +42,7 @@ def build_generator(config):
             apply_warp=config.texture.apply_warp,
             perspective=config.texture.apply_perspective,
             texture_path=config.texture.texture_path,
+            independent_streams=independent_streams,
         )
     if config.image_type == "textures":
         return Textures(
@@ -69,10 +73,13 @@ def generate_image(generator, config):
         if config.shape.multiple_shapes:
             generator.shape_type = np.random.choice(["poly", "mix"])
 
+        # drawn even without depth of field, so that toggling it does not
+        # shift the random stream
+        blur_draw = np.random.power(0.5)
         blur_val = 0.0
         if config.post_process.depth_of_field:
             scale = 5.0 if config.post_process.blur_type == "gaussian" else 10.0
-            blur_val = scale * np.random.power(0.5)
+            blur_val = scale * blur_draw
 
         generator.update_leaves_size_parameters(
             config.shape.radius_min, config.shape.radius_max)
