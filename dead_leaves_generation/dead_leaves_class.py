@@ -10,12 +10,36 @@ from blurgenerator import lens_blur
 
 from dead_leaves_generation.polygons_maker_bis import binary_polygon_generator, make_rectangle_mask
 from dead_leaves_generation.utils.texture_generation import bilevel_texture_mixer, sample_slope
-from dead_leaves_generation.utils.utils import theoretical_number_disks, linear_color_gradient
+from dead_leaves_generation.utils.utils import (
+    linear_color_gradient, number_of_leaves, theoretical_number_disks)
 from dead_leaves_generation.utils.colored_noise import sample_color_noise
 from dead_leaves_generation.utils.perspective import perspective_shift, perspective_source_box
 from dead_leaves_generation.utils.kernels import seed_numba
 
 logger = logging.getLogger(__name__)
+
+# True: number of shapes per layer as in the original implementation (e.g. to
+# compare images with it), which only covers the image for a power-law exponent
+# of 3 and leaves its borders partly uncovered. False: 99.9% of the image is
+# covered after the three layers, see number_of_leaves.
+EXACT_ORIGINAL = False
+
+# Mean area of the shape masks, as (radii, factors), measured over 40-1500 masks
+# per radius (linear in log radius in between, constant beyond):
+# - polygons: relative to pi * (3 * radius // 2)^2, the circle in which their
+#   points are drawn; they fill more of it as the number of points (0.9 *
+#   radius above radius 111) grows;
+# - rectangles: relative to pi * radius^2 (their target area, minus rounding).
+SHAPE_AREA_FACTORS = {
+    "poly": ((1, 2, 3, 4, 5, 6, 8, 10, 15, 20, 30, 40, 60, 100, 125, 150, 200, 250, 300, 400,
+              500, 650, 800, 1000),
+             (0.318, 0.246, 0.308, 0.335, 0.343, 0.362, 0.376, 0.384, 0.394, 0.401, 0.408, 0.412,
+              0.416, 0.413, 0.44, 0.451, 0.483, 0.52, 0.532, 0.562, 0.61, 0.615, 0.704, 0.7)),
+    "rectangle": ((1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 30),
+                  (0.318, 0.249, 0.58, 0.723, 0.841, 0.887, 0.925, 0.941, 0.955, 0.979, 0.988,
+                   0.998, 1.0)),
+}
+UNCOVERED_FRACTION = 1e-3
 
 IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp")
 
@@ -285,15 +309,36 @@ class Deadleaves(Textures):
         self.rmax = rmax
         self.vamin = 1 / (self.rmax ** (self.power_law_exponent - 1))
         self.vamax = 1 / (self.rmin ** (self.power_law_exponent - 1))
-        theoretical_n_shapes = theoretical_number_disks(
-            0.002, self.rmin, self.rmax, self.width, self.power_law_exponent)
-        interval = int(theoretical_n_shapes)
-        logger.debug("Expected shapes per layer: %d", interval)
-        if interval < 10:
-            interval = 1
-        if interval > 10:
-            interval = interval // 10
+        if EXACT_ORIGINAL:
+            theoretical_n_shapes = theoretical_number_disks(
+                0.002, self.rmin, self.rmax, self.width, self.power_law_exponent)
+            interval = int(theoretical_n_shapes)
+            if interval < 10:
+                interval = 1
+            if interval > 10:
+                interval = interval // 10
+        else:
+            # background, middle ground and foreground: 10, 1 and 0.5 x interval shapes
+            shapes = ["disk", "poly", "rectangle"] if self.shape_type == "mix" else [self.shape_type]
+            interval = number_of_leaves(
+                int(self.rmin), int(self.rmax), float(self.power_law_exponent), int(self.width),
+                tuple(self.area_factors(s) for s in shapes), UNCOVERED_FRACTION)
+        logger.debug("Shapes per layer step: %d", interval)
         self.interval = interval
+
+    def area_factors(self, shape):
+        """Mean area of the masks of the given shape type for the radii
+        rmin, ..., rmax - 1, relative to pi * radius^2 (None for disks)."""
+        if shape == "disk":
+            return None
+        radii, factors = SHAPE_AREA_FACTORS[shape]
+        k = np.arange(self.rmin, max(self.rmax, self.rmin + 1))
+        a = np.interp(np.log(k), np.log(radii), factors)
+        if shape == "poly":
+            a *= ((3 * k // 2) / k) ** 2
+            # masks larger than 2 * rmax + 100 are scaled down (_fit_to_max_size)
+            a *= np.minimum(1, (2 * self.rmax + 100.) / (2 * (3 * k // 2) + 1)) ** 2
+        return tuple(a.tolist())
 
     def fetch_textures(self):
         """Loads n_textures textures from texture_path."""

@@ -7,7 +7,8 @@ into a temporary directory and imported as ``dead_leaves_generation_ref``.
   the same random numbers in the same order, so the images must agree up to
   floating point rounding (a few pixels off by 1-2 grey levels).
 * Speed: both versions generate the same number of images with their default
-  settings (``skip_hidden=True`` for the optimised one).
+  settings (``skip_hidden=True`` for the optimised one), and the same number of
+  shapes per layer (the original count, see ``dead_leaves_class.EXACT_ORIGINAL``).
 
 usage:
     python scripts/compare_with_reference.py --image-dir datasets/test_sets/Kodak24
@@ -101,6 +102,9 @@ def main():
     def exact_original(on):
         """Random draws and noise sizes exactly as the original (for comparison)."""
         colored_noise.EXACT_ORIGINAL = geometric_perturbation.EXACT_ORIGINAL = on
+
+    # same number of shapes per layer as the original, for the timings as well
+    fast.EXACT_ORIGINAL = True
 
     with tempfile.TemporaryDirectory() as tmp:
         extract_reference(args.ref, Path(tmp))

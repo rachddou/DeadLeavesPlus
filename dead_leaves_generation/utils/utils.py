@@ -1,7 +1,10 @@
 import random
+from functools import lru_cache
 
 import cv2
 import numpy as np
+from scipy.optimize import brentq
+from scipy.special import logsumexp
 
 from dead_leaves_generation.utils.kernels import (
     mix_lab_to_rgb_u8, normalized_logistic_inplace, rgb_to_lab, seed_numba)
@@ -71,6 +74,89 @@ def theoretical_number_disks(delta,r_min,r_max,width,alpha):
         return(20)
     else:
         return(np.log(delta)/np.log(1-d))
+
+@lru_cache(maxsize=64)
+def number_of_leaves(r_min, r_max, alpha, width, area_factors=(None,), delta=1e-3,
+                     layers=(10, 1, 0.5)):
+    """Number of shapes I per layer step such that, after the layers of
+    int(m * I) shapes for m in layers (background, middle ground, foreground),
+    a fraction 1 - delta of the width x width image is covered on average.
+
+    Radii: r = v^(-1/e), e = alpha - 1, v uniform in [r_max^-e, r_min^-e], and
+    the shape has radius k = int(r) (Deadleaves.sample_radius), so
+    P(k >= t) = (t^-e - r_max^-e) / (r_min^-e - r_max^-e) for t in [r_min, r_max].
+    A disk of radius k covers the offsets |y| <= k; a shape of mean area
+    a_k * pi * k^2 is counted as a disk of radius sqrt(a_k) * k. One shape,
+    centred uniformly in the image, then covers the offset y with probability
+    K(y) = P(k >= smallest radius reaching |y|), averaged over the shape types
+    (drawn with equal probability), and the pixel x with probability
+    p(x) = sum over the centres c in the image of K(x - c) / width^2: about
+    E[area] / width^2 inside the image, half of it on the edges and a quarter
+    in the corners (no shape is centred outside the image).
+
+    Shapes are independent, so x is left uncovered by N shapes with
+    probability (1 - p(x))^N, and the mean uncovered fraction is
+    U(N) = mean over x of (1 - p(x))^N. The result is the smallest I with
+    U(sum of int(m * I)) <= delta.
+
+    Args:
+        r_min, r_max (int): range of the shape radii.
+        alpha (float): power-law exponent of the radii (> 1).
+        width (int): width of the image.
+        area_factors (tuple): for each shape type, the mean area of the shapes
+            of radius k = r_min, ..., r_max - 1 relative to pi k^2 (tuple), or
+            None for disks.
+        delta (float): uncovered fraction of the image after all the layers.
+        layers (tuple): number of shapes of each layer, in units of I.
+    """
+    e = alpha - 1
+    k = np.arange(r_min, max(r_max, r_min + 1))
+    norm = r_min ** -e - r_max ** -e
+    # P(radius >= k), and 0 beyond the largest radius
+    survival = np.append((k ** -e - r_max ** -e) / norm if norm > 0 else np.ones(len(k)), 0.0)
+    reaches = [k.astype(float) if a is None else np.maximum.accumulate(np.sqrt(a) * k)
+               for a in area_factors]
+
+    # K on the offsets [-R, R]^2
+    R = int(np.ceil(max(reach[-1] for reach in reaches)))
+    y = np.arange(-R, R + 1)
+    distance = np.hypot(y[:, None], y[None, :])
+    K = np.zeros_like(distance)
+    for reach in reaches:
+        # the shapes of radius k cover the offsets |y| <= reach[k]
+        K += survival[np.searchsorted(reach, distance, side="left")]
+    K /= len(reaches)
+
+    # p(x): sum of K over the offsets x - c, c in [0, width)^2, from the
+    # integral image of K (separately along rows and columns, the image is square)
+    integral = np.zeros((2 * R + 2, 2 * R + 2))
+    integral[1:, 1:] = K.cumsum(0).cumsum(1)
+    x = np.arange(width)
+    lo = np.clip(x - width + 1 + R, 0, 2 * R + 1)
+    hi = np.clip(x + R + 1, 0, 2 * R + 1)
+    p = (integral[np.ix_(hi, hi)] - integral[np.ix_(lo, hi)]
+         - integral[np.ix_(hi, lo)] + integral[np.ix_(lo, lo)]) / width ** 2
+    log_q = np.log1p(-np.minimum(p, 1 - 1e-12)).ravel()
+
+    def log_uncovered(n):
+        return logsumexp(n * log_q) - np.log(log_q.size)
+
+    def n_shapes(interval):
+        return sum(int(m * interval) for m in layers)
+
+    # U is decreasing: solve U(N) = delta, then round to whole layers
+    target = np.log(delta)
+    high = 1.0
+    while log_uncovered(high) > target:
+        high *= 2
+    n = brentq(lambda n: log_uncovered(n) - target, 0, high)
+    interval = max(1, int(np.ceil(n / sum(layers))))
+    while log_uncovered(n_shapes(interval)) > target:
+        interval += 1
+    while interval > 1 and log_uncovered(n_shapes(interval - 1)) <= target:
+        interval -= 1
+    return interval
+
 
 ## color gradient function
 

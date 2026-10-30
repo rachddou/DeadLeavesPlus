@@ -58,7 +58,7 @@ Options: `--workers N` (parallel generation processes, 10 by default), `--datase
 python image_generation.py color.image_dir=path/to/waterlooDB/
 ```
 
-Images are saved in `io.path_origin/io.path` (`datasets/vibrant_leaves/` by default). Every parameter of [`config/default.yaml`](config/default.yaml) can be overridden with Hydra's `key=value` syntax. For example, classical dead leaves (disks, flat colours and gradients, no depth of field):
+Images are saved in `io.path_origin/io.path` (`datasets/vibrant_leaves/` by default). The number of leaves of each layer is computed from the radius range and the power-law exponent so that 99.9% of the image is covered after the three layers. Every parameter of [`config/default.yaml`](config/default.yaml) can be overridden with Hydra's `key=value` syntax. For example, classical dead leaves (disks, flat colours and gradients, no depth of field):
 
 ```
 python image_generation.py shape.shape_type=disk shape.multiple_shapes=False shape.radius_min=2 \
