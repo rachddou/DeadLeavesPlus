@@ -1,4 +1,4 @@
-from train_test.train_inpaint import train_inpaint
+from restoration.training.train_inpaint import train_inpaint
 import argparse
 import torch
 

@@ -23,12 +23,12 @@ from skimage.metrics import structural_similarity as compare_ssim
 # --------------------------------------------------------------------------- #
 # KAIR imports                                                                  #
 # --------------------------------------------------------------------------- #
-_KAIR = os.path.join(os.path.dirname(__file__), '..', 'KAIR')
+_KAIR = os.path.join(os.path.dirname(__file__), '..', '..', 'third_party', 'KAIR')
 sys.path.insert(0, os.path.abspath(_KAIR))
 from models.network_swinir import SwinIR          # noqa: E402
 from utils.utils_image import imresize_np         # noqa: E402
 
-from utils.utils import init_logger_ipol
+from restoration.common.utils import init_logger_ipol
 
 
 # --------------------------------------------------------------------------- #
@@ -266,12 +266,12 @@ class DatasetSRTester:
 
 
 # --------------------------------------------------------------------------- #
-# Entry point called by launcher_test.py                                        #
+# Entry point called by restoration/test.py                                   #
 # --------------------------------------------------------------------------- #
 
 def test_sr_dataset(args):
     """
     Expects args.sr_pairs: list of (hr_dir, lr_dir_or_None, name) tuples.
-    Built by launcher_test.py from --sr_hr_dirs / --sr_lr_dirs / --sr_names.
+    Built by restoration/test.py from --sr_hr_dirs / --sr_lr_dirs / --sr_names.
     """
     DatasetSRTester(args).test_datasets(args.sr_pairs)

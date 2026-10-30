@@ -28,8 +28,8 @@ try:
 except ImportError:
     WANDB_AVAILABLE = False
 
-from utils.models import UNetDeblur, UNetRes
-from utils.utils import batch_psnr, init_logger
+from restoration.common.models import UNetDeblur, UNetRes
+from restoration.common.utils import batch_psnr, init_logger
 
 
 # ── TV proxy (Chambolle PGD, pure PyTorch, GPU-friendly) ──────────────────────

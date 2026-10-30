@@ -17,8 +17,8 @@ try:
 except ImportError:
     WANDB_AVAILABLE = False
 
-from utils.models import UNetDeblur, UNetRes
-from utils.utils import batch_psnr, init_logger
+from restoration.common.models import UNetDeblur, UNetRes
+from restoration.common.utils import batch_psnr, init_logger
 
 
 def _load_mat_file(path):

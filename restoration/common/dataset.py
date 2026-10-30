@@ -7,7 +7,7 @@ import cv2
 import h5py
 import torch
 import torch.utils.data as udata
-from utils.utils import data_augmentation, normalize
+from restoration.common.utils import data_augmentation, normalize
 from pathlib import Path
 
 def img_to_patches(img, win, stride=1):

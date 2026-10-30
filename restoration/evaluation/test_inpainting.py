@@ -1,35 +1,30 @@
 """
-Test a deblurring model on multiple datasets, reporting scores for every
-Levin09 kernel individually and as an aggregate.
+Test an inpainting model on multiple datasets, reporting scores for every
+fixed p_keep value individually and as an aggregate.
+
+The model expects C+1 input channels: cat([masked_image, mask_1c], dim=1).
+Missing pixels are zero-filled; mask_1c is 1 where the pixel is observed.
 """
 import os
 from time import time
 import numpy as np
 import cv2
-import scipy.ndimage
 import torch
-import torch.nn as nn
 import lpips
 
-from utils.models import UNetDeblur, UNetRes
-from utils.utils import (init_logger_ipol, variable_to_cv2_image,
+from restoration.common.models import UNetDeblur, UNetRes
+from restoration.common.utils import (init_logger_ipol, variable_to_cv2_image,
                          remove_dataparallel_wrapper, batch_ssim, is_rgb)
 from skimage.metrics import peak_signal_noise_ratio as compare_psnr
-from train_test.train_deblur import load_levin_kernels
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-
-def _apply_blur_hwc(img_hwc, kernel):
-    """Convolve each channel of a H×W×C float32 image with kernel."""
-    out = np.empty_like(img_hwc)
-    for c in range(img_hwc.shape[2]):
-        out[:, :, c] = scipy.ndimage.convolve(img_hwc[:, :, c], kernel, mode='reflect')
-    return out
+# Default p_keep values used when none are provided via args
+DEFAULT_P_KEEP = [0.1, 0.2, 0.3, 0.5, 0.7, 0.9]
 
 
-class DatasetDeblurTester:
+class DatasetInpaintTester:
 
     def __init__(self, args):
         torch.manual_seed(0)
@@ -50,14 +45,15 @@ class DatasetDeblurTester:
 
     def _load_model(self, num_channels):
         args = self.args
+        net_in_ch = num_channels + 1   # image channels + 1-channel binary mask
         if args.model == 'UNetDeblur':
-            network = UNetDeblur(in_nc=num_channels, out_nc=num_channels,
+            network = UNetDeblur(in_nc=net_in_ch, out_nc=num_channels,
                                  nc=(64, 128, 256, 512))
         elif args.model == 'UNetRes':
-            network = UNetRes(in_nc=num_channels, out_nc=num_channels,
+            network = UNetRes(in_nc=net_in_ch, out_nc=num_channels,
                               nc=[64, 128, 256, 512], nb=4)
         else:
-            raise ValueError(f"Unknown deblur model: {args.model}. "
+            raise ValueError(f"Unknown inpaint model: {args.model}. "
                              "Choose 'UNetDeblur' or 'UNetRes'.")
 
         model_filepath = os.path.join(os.path.abspath(os.path.dirname(__file__)),
@@ -116,121 +112,123 @@ class DatasetDeblurTester:
             arr = np.concatenate((arr, arr[:, :, :, -1:]), axis=3)
         return torch.Tensor(arr.copy()), pad_h, pad_w
 
-    def _run_model(self, clean_img, kernel):
-        """Blur clean_img with kernel, add optional noise, run model.
+    def _make_mask(self, shape, p_keep, seed):
+        """Generate a reproducible Bernoulli mask of shape (1, 1, H, W)."""
+        rng = torch.Generator()
+        rng.manual_seed(seed)
+        mask = (torch.rand(shape, generator=rng) < p_keep).float()
+        return mask
 
-        Returns (deblurred_tensor, clean_tensor, blurry_tensor, runtime).
+    def _run_model(self, clean_img, p_keep, img_seed):
+        """Apply Bernoulli mask to clean_img, run model.
+
+        Returns (inpainted_tensor, clean_tensor, masked_tensor, runtime).
         """
-        args = self.args
-
-        blurry_img = _apply_blur_hwc(clean_img, kernel)
-        if args.noise_sigma > 0:
-            sigma = args.noise_sigma / 255.0
-            blurry_img = blurry_img + np.random.randn(*blurry_img.shape).astype(np.float32) * sigma
-        blurry_img = np.clip(blurry_img, 0.0, 1.0)
-
         clean_tensor, pad_h, pad_w = self._prepare_tensor(clean_img)
-        blurry_tensor, _, _ = self._prepare_tensor(blurry_img)
+
+        _, C, H, W = clean_tensor.shape
+        mask_1c = self._make_mask((1, 1, H, W), p_keep, seed=img_seed)
 
         with torch.no_grad():
-            clean_t = clean_tensor.type(self.dtype)
-            blurry_t = blurry_tensor.type(self.dtype)
+            clean_t  = clean_tensor.type(self.dtype)
+            mask_t   = mask_1c.type(self.dtype)
+            masked_t = clean_t * mask_t               # zero-fill missing pixels
+            inp      = torch.cat([masked_t, mask_t], dim=1)   # B × (C+1) × H × W
 
         start_time = time()
         with torch.no_grad():
-            raw_out = self.model(blurry_t)
+            raw_out = self.model(inp)
         runtime = time() - start_time
 
-        deblurred = torch.clamp(raw_out, 0., 1.)
+        inpainted = torch.clamp(raw_out, 0., 1.)
 
         if pad_h:
-            clean_t    = clean_t[:, :, :-1, :]
-            deblurred  = deblurred[:, :, :-1, :]
-            blurry_t   = blurry_t[:, :, :-1, :]
+            clean_t   = clean_t[:, :, :-1, :]
+            inpainted = inpainted[:, :, :-1, :]
+            masked_t  = masked_t[:, :, :-1, :]
         if pad_w:
-            clean_t    = clean_t[:, :, :, :-1]
-            deblurred  = deblurred[:, :, :, :-1]
-            blurry_t   = blurry_t[:, :, :, :-1]
+            clean_t   = clean_t[:, :, :, :-1]
+            inpainted = inpainted[:, :, :, :-1]
+            masked_t  = masked_t[:, :, :, :-1]
 
-        return deblurred, clean_t, blurry_t, runtime
+        return inpainted, clean_t, masked_t, runtime
 
     # ------------------------------------------------------------------ #
     # Metrics                                                              #
     # ------------------------------------------------------------------ #
 
-    def _compute_metrics(self, deblurred_tensor, clean_tensor, blurry_tensor):
-        deblurred_cv2  = variable_to_cv2_image(deblurred_tensor)
-        clean_cv2      = variable_to_cv2_image(clean_tensor)
+    def _compute_metrics(self, inpainted_tensor, clean_tensor, masked_tensor):
+        inpainted_cv2 = variable_to_cv2_image(inpainted_tensor)
+        clean_cv2     = variable_to_cv2_image(clean_tensor)
 
-        deblurred_f = np.asarray(deblurred_cv2, dtype=np.float32)
+        inpainted_f = np.asarray(inpainted_cv2, dtype=np.float32)
         clean_f     = np.asarray(clean_cv2, dtype=np.float32)
 
-        mse = np.mean((deblurred_f - clean_f) ** 2)
+        mse  = np.mean((inpainted_f - clean_f) ** 2)
         psnr = 10 * np.log10((255 ** 2) / (mse + 1e-8))
-        psnr_blurry = compare_psnr(clean_cv2, variable_to_cv2_image(blurry_tensor))
-        ssim_val = batch_ssim(deblurred_tensor, clean_tensor)
+        psnr_masked = compare_psnr(clean_cv2, variable_to_cv2_image(masked_tensor))
+        ssim_val = batch_ssim(inpainted_tensor, clean_tensor)
 
         def _to_lpips(tensor_bchw):
             return (tensor_bchw.float() * 2.0 - 1.0)
 
         lpips_val = self.lpips_fn(
-            _to_lpips(deblurred_tensor), _to_lpips(clean_tensor)
+            _to_lpips(inpainted_tensor), _to_lpips(clean_tensor)
         ).item()
 
-        return dict(psnr=psnr, psnr_blurry=psnr_blurry, ssim=ssim_val,
-                    lpips=lpips_val, deblurred_cv2=deblurred_cv2)
+        return dict(psnr=psnr, psnr_masked=psnr_masked, ssim=ssim_val,
+                    lpips=lpips_val, inpainted_cv2=inpainted_cv2)
 
     # ------------------------------------------------------------------ #
     # Logging                                                              #
     # ------------------------------------------------------------------ #
 
-    def _log_image(self, image_stem, kernel_idx, metrics, runtime):
-        print(f"  [{image_stem}] kernel {kernel_idx:02d} | "
+    def _log_image(self, image_stem, p_keep, metrics, runtime):
+        print(f"  [{image_stem}] p_keep={p_keep:.2f} | "
               f"PSNR={metrics['psnr']:.2f} dB | "
               f"LPIPS={metrics['lpips']:.4f} | t={runtime:.3f}s")
-        self.logger.info(f"\t{image_stem} | kernel {kernel_idx:02d} | "
+        self.logger.info(f"\t{image_stem} | p_keep={p_keep:.2f} | "
                          f"PSNR={metrics['psnr']:.4f} | "
-                         f"PSNR_blurry={metrics['psnr_blurry']:.4f} | "
+                         f"PSNR_masked={metrics['psnr_masked']:.4f} | "
                          f"SSIM={metrics['ssim']:.4f} | "
                          f"LPIPS={metrics['lpips']:.4f} | "
                          f"t={runtime:.4f}s")
 
-    def _log_kernel_summary(self, dataset_path, kernel_idx, agg):
+    def _log_pkeep_summary(self, dataset_path, p_keep, agg):
         n = agg['count']
-        msg = (f"\n--- {dataset_path} | kernel {kernel_idx:02d} | {n} images ---\n"
+        msg = (f"\n--- {dataset_path} | p_keep={p_keep:.2f} | {n} images ---\n"
                f"  PSNR        : {agg['psnr']/n:.4f} dB\n"
-               f"  PSNR Blurry : {agg['psnr_blurry']/n:.4f} dB\n"
+               f"  PSNR Masked : {agg['psnr_masked']/n:.4f} dB\n"
                f"  SSIM        : {agg['ssim']/n:.4f}\n"
                f"  LPIPS       : {agg['lpips']/n:.4f}")
         print(msg)
         self.logger.info(msg)
 
-    def _log_dataset_summary(self, dataset_path, all_kernel_aggs):
-        total = {k: 0.0 for k in ('psnr', 'psnr_blurry', 'ssim', 'lpips', 'count')}
-        for agg in all_kernel_aggs:
+    def _log_dataset_summary(self, dataset_path, p_keep_values, all_pkeep_aggs):
+        total = {k: 0.0 for k in ('psnr', 'psnr_masked', 'ssim', 'lpips', 'count')}
+        for agg in all_pkeep_aggs:
             for k in total:
                 total[k] += agg[k]
         n = total['count']
-        msg = (f"\n=== {dataset_path} | ALL {len(all_kernel_aggs)} kernels | {n} image-kernel pairs ===\n"
+        msg = (f"\n=== {dataset_path} | ALL {len(p_keep_values)} p_keep values | {n} image-mask pairs ===\n"
                f"  PSNR        : {total['psnr']/n:.4f} dB\n"
-               f"  PSNR Blurry : {total['psnr_blurry']/n:.4f} dB\n"
+               f"  PSNR Masked : {total['psnr_masked']/n:.4f} dB\n"
                f"  SSIM        : {total['ssim']/n:.4f}\n"
                f"  LPIPS       : {total['lpips']/n:.4f}")
         print(msg)
         self.logger.info(msg)
 
     def _log_global_summary(self, all_dataset_aggs):
-        """Summarize across all datasets and all kernels."""
-        total = {k: 0.0 for k in ('psnr', 'psnr_blurry', 'ssim', 'lpips', 'count')}
+        total = {k: 0.0 for k in ('psnr', 'psnr_masked', 'ssim', 'lpips', 'count')}
         for aggs in all_dataset_aggs.values():
             for agg in aggs:
                 for k in total:
                     total[k] += agg[k]
         n = total['count']
         msg = (f"\n{'='*60}\n"
-               f"GLOBAL SUMMARY — all datasets, all kernels — {n} pairs\n"
+               f"GLOBAL SUMMARY — all datasets, all p_keep values — {n} pairs\n"
                f"  PSNR        : {total['psnr']/n:.4f} dB\n"
-               f"  PSNR Blurry : {total['psnr_blurry']/n:.4f} dB\n"
+               f"  PSNR Masked : {total['psnr_masked']/n:.4f} dB\n"
                f"  SSIM        : {total['ssim']/n:.4f}\n"
                f"  LPIPS       : {total['lpips']/n:.4f}\n"
                f"{'='*60}")
@@ -241,14 +239,9 @@ class DatasetDeblurTester:
     # Main evaluation loop                                                 #
     # ------------------------------------------------------------------ #
 
-    def test_dataset(self, dataset_paths, kernel_path):
-        """Evaluate the model on every (dataset, kernel) combination."""
-        kernels = load_levin_kernels(kernel_path)
-        if self.args.kernel_indices is not None:
-            kernels = [kernels[i] for i in self.args.kernel_indices]
-            print(f"\nTesting with kernels {self.args.kernel_indices}")
-        else:
-            print(f"\nTesting with {len(kernels)} Levin kernels")
+    def test_dataset(self, dataset_paths, p_keep_values):
+        """Evaluate the model on every (dataset, p_keep) combination."""
+        print(f"\nTesting with p_keep values: {p_keep_values}")
 
         loaded_num_channels = None
         all_dataset_aggs = {}
@@ -266,13 +259,12 @@ class DatasetDeblurTester:
 
             num_channels = 1 if self.args.gray else (3 if is_color else 1)
             color_mode = 'Grayscale' if num_channels == 1 else 'RGB'
-            print(f'\n{color_mode} deblurring — {dataset_path}')
+            print(f'\n{color_mode} inpainting — {dataset_path}')
 
             if num_channels != loaded_num_channels:
                 self._load_model(num_channels)
                 loaded_num_channels = num_channels
 
-            # Load all images once; kernels are the inner loop
             images = []
             for fp in image_files:
                 img = self._load_image(fp)
@@ -280,43 +272,43 @@ class DatasetDeblurTester:
                     img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)[:, :, np.newaxis]
                 images.append((os.path.splitext(os.path.basename(fp))[0], img))
 
-            kernel_aggs = []
-            for k_idx, kernel in enumerate(kernels):
-                agg = dict(psnr=0., psnr_blurry=0., ssim=0., lpips=0., count=0)
+            pkeep_aggs = []
+            for p_keep in p_keep_values:
+                agg = dict(psnr=0., psnr_masked=0., ssim=0., lpips=0., count=0)
 
-                for img_stem, img in images:
-                    deblurred, clean_t, blurry_t, runtime = self._run_model(img, kernel)
-                    metrics = self._compute_metrics(deblurred, clean_t, blurry_t)
+                for img_idx, (img_stem, img) in enumerate(images):
+                    # Deterministic seed per (p_keep, image) pair
+                    seed = int(p_keep * 1000) * 10000 + img_idx
+
+                    inpainted, clean_t, masked_t, runtime = self._run_model(
+                        img, p_keep, seed)
+                    metrics = self._compute_metrics(inpainted, clean_t, masked_t)
 
                     agg['psnr']        += metrics['psnr']
-                    agg['psnr_blurry'] += metrics['psnr_blurry']
+                    agg['psnr_masked'] += metrics['psnr_masked']
                     agg['ssim']        += metrics['ssim']
                     agg['lpips']       += metrics['lpips']
                     agg['count']       += 1
 
-                    self._log_image(img_stem, k_idx, metrics, runtime)
-                    if self.args.save or self.args.save_blurry:
+                    self._log_image(img_stem, p_keep, metrics, runtime)
+                    if self.args.save:
                         save_dir = os.path.join('tests', self.args.save_dir)
-                        if self.args.save:
-                            out_name = f"{img_stem}_k{k_idx:02d}_deblurred.png"
-                            cv2.imwrite(os.path.join(save_dir, out_name),
-                                        metrics['deblurred_cv2'])
-                        if self.args.save_blurry:
-                            blurry_cv2 = variable_to_cv2_image(blurry_t)
-                            out_name = f"{img_stem}_k{k_idx:02d}_blurry.png"
-                            cv2.imwrite(os.path.join(save_dir, out_name), blurry_cv2)
+                        out_name = f"{img_stem}_p{int(p_keep*100):03d}_inpainted.png"
+                        cv2.imwrite(os.path.join(save_dir, out_name),
+                                    metrics['inpainted_cv2'])
 
-                self._log_kernel_summary(dataset_path, k_idx, agg)
-                kernel_aggs.append(agg)
+                self._log_pkeep_summary(dataset_path, p_keep, agg)
+                pkeep_aggs.append(agg)
 
-            self._log_dataset_summary(dataset_path, kernel_aggs)
-            all_dataset_aggs[dataset_path] = kernel_aggs
+            self._log_dataset_summary(dataset_path, p_keep_values, pkeep_aggs)
+            all_dataset_aggs[dataset_path] = pkeep_aggs
 
         if len(all_dataset_aggs) > 1:
             self._log_global_summary(all_dataset_aggs)
 
 
-def test_deblur_dataset(args):
-    """Entry point called by launcher_test.py when --task deblur is set."""
-    dataset_paths = args.inputs if args.inputs is not None else [args.input]
-    DatasetDeblurTester(args).test_dataset(dataset_paths, args.kernel_path)
+def test_inpaint_dataset(args):
+    """Entry point called by restoration/test.py when --task inpaint is set."""
+    dataset_paths  = args.inputs if args.inputs is not None else [args.input]
+    p_keep_values  = args.p_keep_values if args.p_keep_values else DEFAULT_P_KEEP
+    DatasetInpaintTester(args).test_dataset(dataset_paths, p_keep_values)

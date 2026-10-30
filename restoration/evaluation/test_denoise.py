@@ -9,10 +9,10 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 import lpips
-from utils.models import FFDNet, UNetRes
+from restoration.common.models import FFDNet, UNetRes
 from skimage.transform import pyramid_reduce, rotate
 from skimage.metrics import peak_signal_noise_ratio as compare_psnr
-from utils.utils import (batch_ssim, normalize, init_logger_ipol,
+from restoration.common.utils import (batch_ssim, normalize, init_logger_ipol,
                          variable_to_cv2_image, remove_dataparallel_wrapper,
                          is_rgb, compute_noise_map, rgb_2_grey_tensor)
 

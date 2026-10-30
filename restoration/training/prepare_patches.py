@@ -11,7 +11,7 @@ version. You should have received a copy of this license along
 this program. If not, see <http://www.gnu.org/licenses/>.
 """
 import argparse
-from utils.dataset import prepare_data
+from restoration.common.dataset import prepare_data
 if __name__ == "__main__":
 	parser = argparse.ArgumentParser(description=\
 								  "Building the training patch database")

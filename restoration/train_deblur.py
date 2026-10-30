@@ -1,4 +1,4 @@
-from train_test.train_deblur import train_deblur
+from restoration.training.train_deblur import train_deblur
 import argparse
 import torch
 

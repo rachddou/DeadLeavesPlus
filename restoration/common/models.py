@@ -13,8 +13,8 @@ this program. If not, see <http://www.gnu.org/licenses/>.
 import torch.nn as nn
 import collections
 from torch.autograd import Variable
-from  utils.functions import concatenate_input_noise_map,upsamplefeatures
-import utils.basicblock as B
+from restoration.common.functions import concatenate_input_noise_map,upsamplefeatures
+import restoration.common.basicblock as B
 import numpy as np
 import torch
 import collections

@@ -12,7 +12,7 @@ Supports two inverse problems:
 Example usage
 -------------
 # Inpainting on Set14
-python pnp_reconstruction.py \
+python -m restoration.pnp_reconstruction \
     --task inpainting \
     --inputs Set14/image_SRF_2/HR \
     --model_path models_zoo/drunet_dl.pth \
@@ -20,7 +20,7 @@ python pnp_reconstruction.py \
     --save_dir pnp_inpainting/drunet_dl
 
 # Deblurring on Set14
-python pnp_reconstruction.py \
+python -m restoration.pnp_reconstruction \
     --task deblurring \
     --inputs Set14/image_SRF_2/HR \
     --model_path models_zoo/drunet_dl.pth \
@@ -41,7 +41,7 @@ from deepinv.optim.prior import PnP
 from deepinv.optim.data_fidelity import L2
 from deepinv.optim.dpir import get_DPIR_params
 
-from utils.utils import init_logger_ipol
+from restoration.common.utils import init_logger_ipol
 
 
 # --------------------------------------------------------------------------- #
@@ -49,7 +49,7 @@ from utils.utils import init_logger_ipol
 # --------------------------------------------------------------------------- #
 
 def _load_kernels(kernel_path):
-    from train_test.train_deblur import load_levin_kernels
+    from restoration.training.train_deblur import load_levin_kernels
     return load_levin_kernels(kernel_path)
 
 

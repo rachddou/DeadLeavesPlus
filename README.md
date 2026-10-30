@@ -4,7 +4,7 @@
 
 [![arXiv](https://img.shields.io/badge/arXiv-2504.10201-red)](https://arxiv.org/pdf/2504.10201)
 
-![VibrantLeaves image generation pipeline](readme_images/pipeline.png)
+![VibrantLeaves image generation pipeline](assets/pipeline.png)
 
 VibrantLeaves generates synthetic images for training image restoration networks. It builds on the classical dead leaves model, where random shapes occlude each other, and adds three ingredients:
 
@@ -21,9 +21,7 @@ Denoising and super-resolution networks trained only on these images come close 
 | [`dead_leaves_generation/`](dead_leaves_generation) | The image generator: shapes, textures and depth-of-field composition |
 | [`app.py`](app.py) | **Vibrant Leaves Generator**, a web app to explore the parameters and generate datasets |
 | [`image_generation.py`](image_generation.py), [`config/default.yaml`](config/default.yaml) | Command-line dataset generation |
-| `launcher_train*.py`, [`train_test/`](train_test) | Training of denoising (DRUNet, FFDNet), deblurring and inpainting networks |
-| [`launcher_test.py`](launcher_test.py), [`pnp_reconstruction.py`](pnp_reconstruction.py) | Evaluation (denoising, deblurring, inpainting, super-resolution) and DPIR plug-and-play reconstruction |
-| [`scripts/compare_with_reference.py`](scripts/compare_with_reference.py) | Checks the generator against its original implementation |
+| [`restoration/`](restoration) | Training (`train*.py`) and evaluation (`test.py`) of denoising (DRUNet, FFDNet), deblurring, inpainting and super-resolution networks, and DPIR plug-and-play reconstruction (`pnp_reconstruction.py`) |
 
 ## Installation
 
@@ -138,55 +136,55 @@ A ready-made VibrantLeaves dataset will be released soon.
 Denoising (DRUNet or FFDNet): extract patches into HDF5 files, then train. Checkpoints and logs go to `TRAINING_LOGS/<log_dir>/`.
 
 ```bash
-python preprocessing.py --trainset_dir datasets/vibrant_leaves/ --valset_dir datasets/test_sets/Kodak24 \
+python -m restoration.prepare_data --trainset_dir datasets/vibrant_leaves/ --valset_dir datasets/test_sets/Kodak24 \
     --suffix .png --filenames train_vl.h5 val.h5
-python launcher_train.py --model DRUNet --filenames train_vl.h5 val.h5 --log_dir drunet_vl
+python -m restoration.train --model DRUNet --filenames train_vl.h5 val.h5 --log_dir drunet_vl
 ```
 
 Deblurring (Levin09 kernels) and inpainting train directly from image folders:
 
 ```bash
-python launcher_train_deblur.py --train_dir datasets/vibrant_leaves/ --val_dir datasets/test_sets/Kodak24 \
+python -m restoration.train_deblur --train_dir datasets/vibrant_leaves/ --val_dir datasets/test_sets/Kodak24 \
     --kernel_path datasets/Levin09.mat
-python launcher_train_inpaint.py --train_dir datasets/vibrant_leaves/ --val_dir datasets/test_sets/Kodak24
+python -m restoration.train_inpaint --train_dir datasets/vibrant_leaves/ --val_dir datasets/test_sets/Kodak24
 ```
 
-Each launcher lists its options with `--help`.
+Each one lists its options with `--help`. Run them from the root of the repository.
 
 ## Evaluation
 
 Pre-trained weights for [denoising, deblurring and inpainting](https://drive.switch.ch/index.php/s/Bmdq0lOHylwgb9d) and [SwinIR super-resolution](https://drive.switch.ch/index.php/s/uCdAIpnKEfE09xJ) (place them under `sr_models/swin_ir_x2/` and `sr_models/swin_ir_x4/`). Put the [test sets](https://drive.switch.ch/index.php/s/jfh3N5ZNv1KVPpP) in `datasets/test_sets/`.
 
-All four tasks use one entry point, `python launcher_test.py --task <denoise|deblur|inpaint|sr> [options]`:
+All four tasks use one entry point, `python -m restoration.test --task <denoise|deblur|inpaint|sr> [options]`:
 
 ```bash
 # Denoising: DRUNet on several test sets and noise levels
-python launcher_test.py --task denoise --model_path TRAINING_LOGS/my_model/ckpt.pth \
+python -m restoration.test --task denoise --model_path TRAINING_LOGS/my_model/ckpt.pth \
     --inputs datasets/test_sets/Kodak24 datasets/test_sets/CBSD68 --noise_sigmas 15 25 50 \
     --save_dir denoising/my_model
 
 # Deblurring with Levin09 kernels
-python launcher_test.py --task deblur --model_path TRAINING_LOGS/my_deblur_model/ckpt.pth \
+python -m restoration.test --task deblur --model_path TRAINING_LOGS/my_deblur_model/ckpt.pth \
     --inputs datasets/test_sets/CBSD68 --kernel_path datasets/Levin09.mat --save_dir deblurring/my_model
 
 # Super-resolution (lightweight SwinIR, x2 or x4)
-python launcher_test.py --task sr --scale 2 --model_path sr_models/swin_ir_x2/DL_E.pth \
+python -m restoration.test --task sr --scale 2 --model_path sr_models/swin_ir_x2/DL_E.pth \
     --sr_hr_dirs Set5/original Set14/image_SRF_2/HR --sr_names Set5 Set14 --save_dir sr_x2/DL_E
 ```
 
-For super-resolution, low-resolution images are generated from the ground truth with a MATLAB-equivalent bicubic downsampler (`--sr_lr_dirs` to use existing ones). It relies on [KAIR](https://github.com/cszn/KAIR), a git submodule: run `git submodule update --init --recursive` after cloning.
+For super-resolution, low-resolution images are generated from the ground truth with a MATLAB-equivalent bicubic downsampler (`--sr_lr_dirs` to use existing ones). It relies on [KAIR](https://github.com/cszn/KAIR), a git submodule in `third_party/KAIR`: run `git submodule update --init --recursive` after cloning.
 
 ### DPIR plug-and-play reconstruction
 
-[`pnp_reconstruction.py`](pnp_reconstruction.py) implements DPIR (Zhang et al., 2021) for inpainting and deblurring, with a DRUNet denoiser as prior: half-quadratic splitting with a decreasing noise schedule, using [DeepInverse](https://deepinv.github.io). Inpainting starts from a TV-PGD warm start, deblurring from the pseudo-inverse.
+[`restoration/pnp_reconstruction.py`](restoration/pnp_reconstruction.py) implements DPIR (Zhang et al., 2021) for inpainting and deblurring, with a DRUNet denoiser as prior: half-quadratic splitting with a decreasing noise schedule, using [DeepInverse](https://deepinv.github.io). Inpainting starts from a TV-PGD warm start, deblurring from the pseudo-inverse.
 
 ```bash
 # Inpainting (30% of the pixels kept)
-python pnp_reconstruction.py --task inpainting --inputs Set14/image_SRF_2/HR \
+python -m restoration.pnp_reconstruction --task inpainting --inputs Set14/image_SRF_2/HR \
     --model_path models_zoo/drunet_dl.pth --mask 0.3 --save --save_dir pnp_inpainting/drunet_dl
 
 # Deblurring with Levin09 kernels
-python pnp_reconstruction.py --task deblurring --inputs Set14/image_SRF_2/HR \
+python -m restoration.pnp_reconstruction --task deblurring --inputs Set14/image_SRF_2/HR \
     --model_path models_zoo/drunet_dl.pth --kernel_path datasets/Levin09.mat \
     --noise_sigma 7 --save_dir pnp_deblurring/drunet_dl
 ```

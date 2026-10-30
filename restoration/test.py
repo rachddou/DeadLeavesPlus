@@ -1,8 +1,8 @@
 import os
-from train_test.dataset_test import test_dataset
-from train_test.test_deblurring import test_deblur_dataset
-from train_test.test_inpainting import test_inpaint_dataset
-from train_test.test_sr import test_sr_dataset
+from restoration.evaluation.test_denoise import test_dataset
+from restoration.evaluation.test_deblurring import test_deblur_dataset
+from restoration.evaluation.test_inpainting import test_inpaint_dataset
+from restoration.evaluation.test_sr import test_sr_dataset
 import torch
 import argparse
 

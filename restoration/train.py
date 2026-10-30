@@ -1,4 +1,4 @@
-from train_test.train import train_ffdnet,train_drunet
+from restoration.training.train_denoise import train_ffdnet,train_drunet
 
 import argparse
 
