@@ -1,6 +1,6 @@
 import logging
 import os
-from time import time, clock_gettime, CLOCK_MONOTONIC
+from time import time, monotonic
 
 import hydra
 import numpy as np
@@ -138,7 +138,7 @@ def main(config):
             filename = os.path.join(out_dir, f"im_{index:04d}.png")
         else:
             image = generate_image(generator, config)
-            filename = os.path.join(out_dir, f"im_{int(100 * clock_gettime(CLOCK_MONOTONIC))}.png")
+            filename = os.path.join(out_dir, f"im_{int(100 * monotonic())}.png")
         skio.imsave(filename, image)
         logger.info("Image saved in %.2fs → %s", time() - t0, filename)
 

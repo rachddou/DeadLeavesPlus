@@ -30,7 +30,7 @@ Denoising and super-resolution networks trained only on these images come close 
 Python 3.12 or 3.13 (Hydra 1.3 does not run on Python 3.14):
 
 ```
-sh setup.sh
+pip install -r requirements.txt
 ```
 
 Shape colours are sampled from natural images; we use the [Waterloo Exploration Database](https://kedema.org/project/exploration/index.html) ([direct download](https://ivc.uwaterloo.ca/database/WaterlooExploration/exploration_database_and_code.rar), 1.9 GB). Any folder of images works, and random colours can be used instead (`color.use_natural_images=False`).
