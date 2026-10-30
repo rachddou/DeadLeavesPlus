@@ -89,6 +89,9 @@
   .segmented button:first-child { border-left: 0; }
   .segmented button[aria-pressed="true"] { background: var(--accent); color: #fff; }
   .segmented button:disabled { opacity: .45; cursor: not-allowed; }
+  .path-row { display: flex; gap: 6px; align-items: center; }
+  .path-row input { flex: 1; min-width: 0; }
+  .btn.small { padding: 5px 10px; font-size: 12.5px; flex: none; }
   input[type=text] { width: 100%; padding: 7px 9px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--text); font: inherit; font-size: 12.5px; }
   .disabled { opacity: .45; pointer-events: none; }
 
@@ -136,6 +139,10 @@
   dialog h3 { margin: 0 0 8px; font-size: 17px; }
   dialog p { margin: 0 0 10px; color: var(--muted); }
   dialog .note { color: var(--danger); }
+  dialog code { font-size: 12.5px; word-break: break-all; color: var(--text); }
+  #source-message { min-height: 1.4em; margin: 8px 0 0; font-size: 12.5px; }
+  #source-message.ok, #image-dir-message.ok { color: var(--accent); }
+  #source-message.bad, #image-dir-message.bad { color: var(--danger); }
   dialog .actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
 
   #lightbox { position: fixed; inset: 0; background: rgba(0,0,0,.82); display: none; align-items: center; justify-content: center; flex-direction: column; gap: 12px; z-index: 10; padding: 20px; }
@@ -201,7 +208,11 @@
       <label class="toggle">Sample colours from natural images <input type="checkbox" id="use-natural"></label>
       <div class="field" id="image-dir-field">
         <div class="label">Colour image directory</div>
-        <input type="text" id="image-dir" spellcheck="false">
+        <div class="path-row">
+          <input type="text" id="image-dir" spellcheck="false">
+          <button class="btn small" type="button" id="image-dir-browse">Browse…</button>
+        </div>
+        <div class="hint" id="image-dir-message" role="status"></div>
       </div>
       <label class="toggle">Greyscale <input type="checkbox" id="grey"></label>
     </section>
@@ -246,6 +257,20 @@
   <div class="actions">
     <button class="btn" id="confirm-no" value="no">No</button>
     <button class="btn primary" id="confirm-yes" value="yes">Yes, generate</button>
+  </div>
+</dialog>
+
+<dialog id="source" aria-labelledby="source-title">
+  <h3 id="source-title">Where should the colours come from?</h3>
+  <p>Shape colours are sampled from natural images, but there are no images in <code id="source-default"></code>. Choose a directory of images (for example the Waterloo Exploration Database), or use random colours.</p>
+  <div class="path-row">
+    <input type="text" id="source-path" placeholder="path/to/images" spellcheck="false" aria-label="Colour image directory">
+    <button class="btn small" type="button" id="source-browse">Browse…</button>
+  </div>
+  <p id="source-message" role="status"></p>
+  <div class="actions">
+    <button class="btn" id="source-random">Use random colours</button>
+    <button class="btn primary" id="source-use">Use these images</button>
   </div>
 </dialog>
 
@@ -521,7 +546,11 @@ function buildMenu(info) {
 
   bindToggle("use-natural", "use_natural_images", refreshDependent);
   $("image-dir").value = state.image_dir;
-  $("image-dir").addEventListener("input", (e) => (state.image_dir = e.target.value));
+  $("image-dir").addEventListener("input", (e) => { state.image_dir = e.target.value; showImageCount(null); });
+  $("image-dir-browse").addEventListener("click", async () => {
+    const found = await browseFolder($("image-dir"), $("image-dir-message"));
+    if (found) { state.image_dir = found.path; showImageCount(found, $("image-dir-message")); }
+  });
   bindToggle("grey", "grey");
 
   bindToggle("dof", "depth_of_field", refreshDependent);
@@ -533,6 +562,79 @@ function buildMenu(info) {
   const grid = $("grid");
   grid.innerHTML = "";
   for (let i = 0; i < info.n_images; i++) grid.insertAdjacentHTML("beforeend", '<div class="slot"></div>');
+}
+
+/* ---------- colour source images ---------- */
+async function postJSON(url, body) {
+  const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || response.statusText);
+  return data;
+}
+
+// "N images found" (or not) under a path field; null clears it
+function showImageCount(found, el = $("image-dir-message")) {
+  el.className = found ? (found.n_images ? "ok" : "bad") : "";
+  el.textContent = !found ? "" : found.n_images ? `${found.n_images} images found.` : `No images in ${found.path}.`;
+}
+
+// native folder dialog, on the machine running the app: {path, n_images}, or null when cancelled / unavailable
+async function browseFolder(input, message) {
+  message.textContent = "";
+  try {
+    const found = await postJSON("/api/image-dir/browse", { path: input.value });
+    if (!found.path) return null;
+    input.value = found.path;
+    return found;
+  } catch (err) {
+    message.className = "bad";
+    message.textContent = err.message;
+    return null;
+  }
+}
+
+// Before the first sample, when the configured directory has no images: asks for
+// a directory of colour source images, or random colours. Resolves once chosen.
+function askColourSource() {
+  return new Promise((resolve) => {
+    const dialog = $("source"), input = $("source-path"), message = $("source-message");
+    $("source-default").textContent = state.image_dir;
+    const choose = (path, useNatural) => {
+      state.image_dir = path;
+      state.use_natural_images = useNatural;
+      $("image-dir").value = path;
+      $("use-natural").checked = useNatural;
+      showImageCount(null);
+      refreshDependent();
+      dialog.close();
+      resolve();
+    };
+    input.addEventListener("input", () => showImageCount(null, message));
+    $("source-browse").addEventListener("click", async () => {
+      const found = await browseFolder(input, message);
+      if (found) showImageCount(found, message);
+    });
+    $("source-use").addEventListener("click", async () => {
+      if (!input.value.trim()) {
+        message.className = "bad";
+        message.textContent = "Type a path or click Browse… first.";
+        return input.focus();
+      }
+      try {
+        const found = await postJSON("/api/image-dir/check", { path: input.value });
+        if (found.n_images) return choose(found.path, true);
+        showImageCount(found, message);
+      } catch (err) {
+        message.className = "bad";
+        message.textContent = err.message;
+      }
+    });
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") $("source-use").click(); });
+    $("source-random").addEventListener("click", () => choose(state.image_dir, false));
+    dialog.addEventListener("cancel", (e) => e.preventDefault());   // Escape: a choice is needed
+    dialog.showModal();
+    input.focus();
+  });
 }
 
 /* ---------- generation ---------- */
@@ -726,13 +828,17 @@ $("dataset-cancel").addEventListener("click", async () => {
 
 fetch("/api/state")
   .then((r) => r.json())
-  .then((info) => {
+  .then(async (info) => {
     N_DATASET = info.n_dataset;
     DATASET_ROOT = info.dataset_root;
     $("dataset-button").textContent = `Generate full dataset (${N_DATASET} images)`;
     buildMenu(info);
-    generate();
     pollDataset();   // a dataset may still be running from before a reload
+    if (state.use_natural_images && !info.n_source_images) {
+      $("status").textContent = "";
+      await askColourSource();
+    }
+    generate();
   })
   .catch((err) => { $("status").textContent = ""; $("error").textContent = `Could not reach the app server: ${err.message}`; });
 </script>

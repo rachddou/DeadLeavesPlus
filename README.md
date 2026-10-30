@@ -33,7 +33,7 @@ Python 3.12 or 3.13 (Hydra 1.3 does not run on Python 3.14):
 sh setup.sh
 ```
 
-Shape colours are sampled from natural images; we use the [Waterloo Exploration Database](https://ece.uwaterloo.ca/~k29ma/exploration/).
+Shape colours are sampled from natural images; we use the [Waterloo Exploration Database](https://kedema.org/project/exploration/index.html) ([direct download](https://ivc.uwaterloo.ca/database/WaterlooExploration/exploration_database_and_code.rar), 1.9 GB). Any folder of images works, and random colours can be used instead (`color.use_natural_images=False`).
 
 ## Vibrant Leaves Generator app
 
@@ -43,7 +43,7 @@ https://github.com/user-attachments/assets/f6e7f7f1-5ad5-403d-8633-0baee3707fa8
 python app.py
 ```
 
-Then open http://127.0.0.1:7860. From the menu you can:
+Then open http://127.0.0.1:7860. If `color.image_dir` of the config contains no images, the app first asks you to choose a folder of colour source images, or to use random colours. From the menu you can:
 
 - pick the shape type and the texture types from icons, and set the share of each texture type by dragging the separators of a single bar;
 - adjust the leaf size range, the 1/f slope, pattern warps, perspective, colours, depth of field and image size;

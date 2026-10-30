@@ -17,6 +17,20 @@ from dead_leaves_generation.utils.kernels import seed_numba
 
 logger = logging.getLogger(__name__)
 
+IMAGE_EXTENSIONS = (".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp")
+
+
+def list_images(path):
+    """Sorted paths of the image files of a directory ([] if it does not exist).
+
+    Sorted: os.listdir's order depends on the file system, and the same random
+    draw must pick the same image everywhere.
+    """
+    if not os.path.isdir(path):
+        return []
+    return sorted(os.path.join(path, f) for f in os.listdir(path)
+                  if f.lower().endswith(IMAGE_EXTENSIONS) and os.path.isfile(os.path.join(path, f)))
+
 
 def _mix64(x):
     """SplitMix64 finaliser: decorrelated 64-bit keys from consecutive integers."""
@@ -153,11 +167,11 @@ class Textures:
         Updates img_source, src_h and src_w.
         """
         if not self.files:
-            # sorted: os.listdir's order depends on the file system, and the
-            # same random draw must pick the same image everywhere
-            self.files = sorted(os.path.join(self.path, f)
-                                for f in os.listdir(self.path)
-                                if os.path.isfile(os.path.join(self.path, f)))
+            self.files = list_images(self.path)
+            if not self.files:
+                raise FileNotFoundError(
+                    f"No colour source images in {self.path!r}: set color.image_dir to a directory "
+                    "of images, or color.use_natural_images=False for random colours.")
         ind = random.randint(0, len(self.files) - 1)
         self.img_source = skio.imread(self.files[ind])
         self.src_h = self.img_source.shape[0]

@@ -73,7 +73,7 @@ def _texture_icon(texture_type, image_dir):
     from dead_leaves_generation.utils.utils import set_seed
 
     set_seed(TEXTURE_TYPES.index(texture_type) + 3)
-    textures = Textures(width=ICON_SIZE, use_natural_images=Path(image_dir).is_dir(),
+    textures = Textures(width=ICON_SIZE, use_natural_images=count_images(image_dir) > 0,
                         path=image_dir, types=[texture_type])
     return textures.generate_texture(width=ICON_SIZE)[:ICON_SIZE, :ICON_SIZE]
 
@@ -110,6 +110,12 @@ def _default_image_dir():
     if not configured.is_dir() and fallback.is_dir():
         return str(fallback)
     return str(configured)
+
+
+def count_images(path):
+    """Number of colour source images in a directory (0 if it does not exist)."""
+    from dead_leaves_generation.dead_leaves_class import list_images
+    return len(list_images(os.path.expanduser(str(path))))
 
 
 def menu_defaults():
@@ -176,9 +182,10 @@ def build_config(params):
     texture["apply_perspective"] = bool(params["apply_perspective"])
 
     color["use_natural_images"] = bool(params["use_natural_images"])
-    color["image_dir"] = str(params["image_dir"])
-    if color["use_natural_images"] and not Path(color["image_dir"]).is_dir():
-        raise ValueError(f"Colour image directory not found: {color['image_dir']}")
+    color["image_dir"] = os.path.expanduser(str(params["image_dir"]))
+    if color["use_natural_images"] and not count_images(color["image_dir"]):
+        raise ValueError(f"No colour source images in {color['image_dir']!r}: choose another "
+                         "directory or turn off 'Sample colours from natural images'.")
     color["grey"] = bool(params["grey"])
 
     post["depth_of_field"] = bool(params["depth_of_field"])
@@ -332,6 +339,34 @@ def open_folder(path):
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def choose_folder(initial_dir):
+    """Asks for a folder with the native dialog of the machine running the app.
+
+    Returns:
+        str or None: the chosen folder, None when the dialog is cancelled.
+
+    Raises:
+        OSError / subprocess.SubprocessError: when no dialog can be shown (e.g.
+        on a remote server, or a Python built without tkinter).
+    """
+    title = "Choose the colour source image directory"
+    if sys.platform == "darwin":
+        result = subprocess.run(["osascript", "-e", f'POSIX path of (choose folder with prompt "{title}")'],
+                                capture_output=True, text=True, timeout=600)
+        if result.returncode and "-128" in result.stderr:   # user cancelled
+            return None
+    else:
+        script = ("import sys, tkinter, tkinter.filedialog as fd\n"
+                  "root = tkinter.Tk(); root.withdraw(); root.attributes('-topmost', True)\n"
+                  "print(fd.askdirectory(initialdir=sys.argv[1], title=sys.argv[2], parent=root))")
+        initial = initial_dir if os.path.isdir(initial_dir) else str(Path.home())
+        result = subprocess.run([sys.executable, "-c", script, initial, title],
+                                capture_output=True, text=True, timeout=600)
+    if result.returncode:
+        raise OSError(result.stderr.strip().splitlines()[-1] if result.stderr.strip() else "no dialog")
+    return result.stdout.strip() or None
+
+
 # ---------------------------------------------------------------------------
 # HTTP server
 # ---------------------------------------------------------------------------
@@ -369,12 +404,14 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self._send_json({"error": "not found"}, HTTPStatus.NOT_FOUND)
 
+    def _read_json(self):
+        return json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+
     def _read_config(self):
         """Config from the menu state in the request body, or None after
         answering with an error."""
         try:
-            params = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-            return build_config(params)
+            return build_config(self._read_json())
         except (ValueError, KeyError, TypeError) as error:
             self._send_json({"error": str(error)}, HTTPStatus.BAD_REQUEST)
             return None
@@ -389,6 +426,21 @@ class Handler(BaseHTTPRequestHandler):
             if job:
                 job.cancel()
             self._send_json(job.status() if job else {"state": "idle"})
+        elif self.path == "/api/image-dir/check":
+            try:
+                path = os.path.expanduser(str(self._read_json()["path"]).strip())
+            except (ValueError, KeyError, TypeError):
+                return self._send_json({"error": "Invalid request."}, HTTPStatus.BAD_REQUEST)
+            self._send_json({"path": path, "n_images": count_images(path)})
+        elif self.path == "/api/image-dir/browse":
+            try:
+                initial = str(self._read_json().get("path", ""))
+                path = choose_folder(os.path.expanduser(initial))
+            except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError, AttributeError):
+                return self._send_json({"error": "Cannot open a folder dialog on this machine: "
+                                                 "type the path instead."},
+                                       HTTPStatus.INTERNAL_SERVER_ERROR)
+            self._send_json({"path": path, "n_images": count_images(path) if path else 0})
         elif self.path == "/api/dataset/open":
             # only the folder of the current dataset can be opened
             job = Handler.dataset_job
@@ -470,6 +522,9 @@ def main():
         Handler.dataset_root = Path(args.dataset_dir)
         Handler.page_state = {
             "defaults": defaults,
+            # the page asks for a colour image directory (or random colours)
+            # before the first sample when this is 0
+            "n_source_images": count_images(defaults["image_dir"]),
             "n_images": N_IMAGES,
             "n_dataset": N_DATASET,
             "dataset_root": _display_path(args.dataset_dir),
