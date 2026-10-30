@@ -20,10 +20,20 @@ events.*
 *.png 
 *.txt
 
-!readme_images/*
-readme_images/*.mov
-!setup.sh
+!assets/*
+assets/*.mov
 !default.yaml
 __pycache__/
 *.nbi
 *.nbc
+
+# personal / cluster material, kept locally
+tmp/
+jobs/
+scripts/
+outputs/
+bias_free_denoising/
+config/utils.py
+config/config_generator.py
+setup.py
+setup.sh
